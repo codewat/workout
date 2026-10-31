@@ -52,3 +52,4 @@ export class WakeLockManager {
 }
 
 export const wakeLockManager = new WakeLockManager();
+

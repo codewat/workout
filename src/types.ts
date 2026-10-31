@@ -7,3 +7,4 @@ export interface WorkoutSetGroup {
   id: string;
   exercises: ExerciseItem[];
 }
+

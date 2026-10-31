@@ -54,3 +54,4 @@ export function saveWorkoutToStorage(routine: WorkoutSetGroup[]) {
     // Storage quota exceeded or disabled
   }
 }
+

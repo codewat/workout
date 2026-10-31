@@ -1,8 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
-import { WorkoutSetGroup, ExerciseItem } from "../types";
-import { Plus, Trash2, Dumbbell, Play, Sparkles, Flame, Check } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { WorkoutSetGroup } from "../types";
+import {
+  Plus,
+  Trash2,
+  Dumbbell,
+  Play,
+  Sparkles,
+  Flame,
+  Search,
+  BookOpen,
+  X,
+} from "lucide-react";
+import ExercisePickerModal from "./ExercisePickerModal";
 
 interface WorkoutBuilderProps {
   workoutList: WorkoutSetGroup[];
@@ -29,15 +40,15 @@ const TEMPLATES: { name: string; icon: string; routine: WorkoutSetGroup[] }[] = 
       {
         id: "p3",
         exercises: [
-          { id: "p3-1", name: "Overhead Dumbbell Press" },
-          { id: "p3-2", name: "Lateral Raises" },
+          { id: "p3-1", name: "Overhead Barbell Press" },
+          { id: "p3-2", name: "Dumbbell Lateral Raises" },
         ],
       },
       {
         id: "p4",
         exercises: [
           { id: "p4-1", name: "Tricep Rope Pushdowns" },
-          { id: "p4-2", name: "Overhead Tricep Extension" },
+          { id: "p4-2", name: "Overhead Dumbbell Tricep Extension" },
         ],
       },
     ],
@@ -48,12 +59,12 @@ const TEMPLATES: { name: string; icon: string; routine: WorkoutSetGroup[] }[] = 
     routine: [
       {
         id: "pl1",
-        exercises: [{ id: "pl1-1", name: "Pull-ups / Lat Pulldown" }],
+        exercises: [{ id: "pl1-1", name: "Pull-ups" }],
       },
       {
         id: "pl2",
         exercises: [
-          { id: "pl2-1", name: "Barbell Bent-Over Rows" },
+          { id: "pl2-1", name: "Barbell Bent-Over Row" },
           { id: "pl2-2", name: "Face Pulls" },
         ],
       },
@@ -72,12 +83,12 @@ const TEMPLATES: { name: string; icon: string; routine: WorkoutSetGroup[] }[] = 
     routine: [
       {
         id: "l1",
-        exercises: [{ id: "l1-1", name: "Barbell Squats" }],
+        exercises: [{ id: "l1-1", name: "Barbell Back Squats" }],
       },
       {
         id: "l2",
         exercises: [
-          { id: "l2-1", name: "Romanian Deadlifts" },
+          { id: "l2-1", name: "Romanian Deadlift (RDL)" },
           { id: "l2-2", name: "Walking Lunges" },
         ],
       },
@@ -85,7 +96,7 @@ const TEMPLATES: { name: string; icon: string; routine: WorkoutSetGroup[] }[] = 
         id: "l3",
         exercises: [
           { id: "l3-1", name: "Leg Press" },
-          { id: "l3-2", name: "Calf Raises" },
+          { id: "l3-2", name: "Standing Calf Raises" },
         ],
       },
     ],
@@ -99,10 +110,26 @@ export default function WorkoutBuilder({
 }: WorkoutBuilderProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
-  const handleAddNewSet = () => {
+  // Search filter for routine builder
+  const [routineSearchQuery, setRoutineSearchQuery] = useState("");
+
+  // Modal State for picking exercises
+  const [pickerState, setPickerState] = useState<{
+    isOpen: boolean;
+    targetGroupId: string;
+    targetExerciseId: string;
+    currentValue: string;
+  }>({
+    isOpen: false,
+    targetGroupId: "",
+    targetExerciseId: "",
+    currentValue: "",
+  });
+
+  const handleAddNewSet = (initialExerciseName: string = "") => {
     const newGroup: WorkoutSetGroup = {
       id: "set-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
-      exercises: [{ id: "ex-" + Date.now(), name: "" }],
+      exercises: [{ id: "ex-" + Date.now(), name: initialExerciseName }],
     };
     onUpdateWorkoutList([...workoutList, newGroup]);
   };
@@ -111,14 +138,14 @@ export default function WorkoutBuilder({
     onUpdateWorkoutList(workoutList.filter((g) => g.id !== groupId));
   };
 
-  const handleAddSuperset = (groupId: string) => {
+  const handleAddSuperset = (groupId: string, exerciseName: string = "") => {
     const updated = workoutList.map((g) => {
       if (g.id === groupId) {
         return {
           ...g,
           exercises: [
             ...g.exercises,
-            { id: "ex-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6), name: "" },
+            { id: "ex-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6), name: exerciseName },
           ],
         };
       }
@@ -154,10 +181,24 @@ export default function WorkoutBuilder({
     onUpdateWorkoutList(updated);
   };
 
+  const openPicker = (groupId: string, exerciseId: string, currentValue: string) => {
+    setPickerState({
+      isOpen: true,
+      targetGroupId: groupId,
+      targetExerciseId: exerciseId,
+      currentValue,
+    });
+  };
+
+  const handleExerciseSelected = (exerciseName: string) => {
+    if (pickerState.targetGroupId && pickerState.targetExerciseId) {
+      handleExerciseNameChange(pickerState.targetGroupId, pickerState.targetExerciseId, exerciseName);
+    }
+  };
+
   const handleApplyTemplate = (templateName: string) => {
     const found = TEMPLATES.find((t) => t.name === templateName);
     if (found) {
-      // Deep clone routine with new IDs
       const cloned: WorkoutSetGroup[] = found.routine.map((set, sIdx) => ({
         id: `set-${Date.now()}-${sIdx}`,
         exercises: set.exercises.map((ex, eIdx) => ({
@@ -169,6 +210,15 @@ export default function WorkoutBuilder({
       setSelectedTemplate(templateName);
     }
   };
+
+  // Filtered sets based on search query
+  const filteredSets = useMemo(() => {
+    const q = routineSearchQuery.toLowerCase().trim();
+    if (!q) return workoutList;
+    return workoutList.filter((group) =>
+      group.exercises.some((ex) => ex.name.toLowerCase().includes(q))
+    );
+  }, [workoutList, routineSearchQuery]);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
@@ -191,7 +241,30 @@ export default function WorkoutBuilder({
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-xl w-full mx-auto px-4 py-5 pb-36 space-y-6">
+      <main className="flex-1 max-w-xl w-full mx-auto px-4 py-5 pb-36 space-y-5">
+        {/* Search Bar for Exercises in Routine */}
+        <section className="relative">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={routineSearchQuery}
+              onChange={(e) => setRoutineSearchQuery(e.target.value)}
+              placeholder="Search exercises in your routine..."
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+            />
+            {routineSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setRoutineSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </section>
+
         {/* Quick Presets / Templates */}
         <section className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
@@ -220,17 +293,24 @@ export default function WorkoutBuilder({
 
         {/* Set Cards List */}
         <section className="space-y-4">
-          {workoutList.length === 0 ? (
-            <div className="text-center py-16 px-4 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800">
+          {filteredSets.length === 0 ? (
+            <div className="text-center py-14 px-4 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800">
               <Dumbbell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-              <h3 className="font-semibold text-slate-300 text-base">No routine yet</h3>
+              <h3 className="font-semibold text-slate-300 text-base">
+                {routineSearchQuery ? `No sets match "${routineSearchQuery}"` : "No routine yet"}
+              </h3>
               <p className="text-sm text-slate-500 mt-1 max-w-xs mx-auto">
-                Tap &ldquo;+ Add New Set&rdquo; below or select a quick template above to get started.
+                {routineSearchQuery
+                  ? "Try clearing your search or add a new exercise below."
+                  : "Tap '+ Add New Set' below or select a quick template above to get started."}
               </p>
             </div>
           ) : (
-            workoutList.map((group, index) => {
+            filteredSets.map((group, index) => {
               const isSuperset = group.exercises.length > 1;
+              const originalIndex = workoutList.findIndex((g) => g.id === group.id);
+              const displayIndex = originalIndex >= 0 ? originalIndex + 1 : index + 1;
+
               return (
                 <div
                   key={group.id}
@@ -244,7 +324,7 @@ export default function WorkoutBuilder({
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm tracking-tight text-white">
-                        Set #{index + 1}
+                        Set #{displayIndex}
                       </span>
                       {isSuperset && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
@@ -266,7 +346,7 @@ export default function WorkoutBuilder({
                   <div className="mt-3 space-y-2.5">
                     {group.exercises.map((exercise, exIndex) => (
                       <div key={exercise.id} className="relative flex items-center gap-2">
-                        <div className="flex-1 relative">
+                        <div className="flex-1 relative flex items-center">
                           <input
                             type="text"
                             value={exercise.name}
@@ -276,11 +356,21 @@ export default function WorkoutBuilder({
                             placeholder={
                               isSuperset
                                 ? `Exercise ${exIndex + 1} (e.g. Pull-ups)`
-                                : "e.g. Bench Press, Squats..."
+                                : "e.g. Barbell Bench Press..."
                             }
-                            className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-3.5 pr-11 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                           />
+                          {/* Search / Pick from Library Button */}
+                          <button
+                            type="button"
+                            onClick={() => openPicker(group.id, exercise.id, exercise.name)}
+                            className="absolute right-2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800/80 transition-colors"
+                            title="Search / Pick from exercise library"
+                          >
+                            <BookOpen className="w-4 h-4" />
+                          </button>
                         </div>
+
                         {isSuperset && (
                           <button
                             type="button"
@@ -317,7 +407,7 @@ export default function WorkoutBuilder({
         <div className="max-w-xl mx-auto space-y-2.5">
           <button
             type="button"
-            onClick={handleAddNewSet}
+            onClick={() => handleAddNewSet()}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-sm font-semibold transition-all active:scale-[0.99]"
           >
             <Plus className="w-4 h-4 text-emerald-400" /> Add New Set
@@ -334,6 +424,14 @@ export default function WorkoutBuilder({
           )}
         </div>
       </div>
+
+      {/* Exercise Picker Modal with full search & categorization */}
+      <ExercisePickerModal
+        isOpen={pickerState.isOpen}
+        onClose={() => setPickerState((prev) => ({ ...prev, isOpen: false }))}
+        onSelectExercise={handleExerciseSelected}
+        currentValue={pickerState.currentValue}
+      />
     </div>
   );
 }
