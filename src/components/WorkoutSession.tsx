@@ -64,9 +64,17 @@ export default function WorkoutSession({
     wakeLockManager.requestWakeLock((active) => setScreenAwake(active));
     return () => {
       wakeLockManager.releaseWakeLock();
+      sound.stopAlarmLoop();
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
+
+  // When soundEnabled is disabled by user, stop any active alarm immediately
+  useEffect(() => {
+    if (!soundEnabled) {
+      sound.stopAlarmLoop();
+    }
+  }, [soundEnabled]);
 
   // Timer tick effect
   useEffect(() => {
@@ -79,13 +87,13 @@ export default function WorkoutSession({
             setIsRunning(false);
             setIsTimesUp(true);
 
+            // Trigger continuous looping alarm sound and vibration
             if (soundEnabled) {
-              sound.playTimesUp();
-              sound.vibrate([300, 150, 300, 150, 400]);
+              sound.startAlarmLoop();
             }
             return 0;
           }
-          // Beep at 3, 2, 1 seconds
+          // Beep at 3, 2, 1 seconds countdown
           if (prev <= 4 && prev > 1 && soundEnabled) {
             sound.playBeep(440, 0.08);
           }
@@ -105,6 +113,7 @@ export default function WorkoutSession({
   }, [isRunning, soundEnabled]);
 
   const handleStartTimer = () => {
+    sound.stopAlarmLoop();
     setIsTimesUp(false);
     setIsRunning(true);
     if (soundEnabled) sound.playBeep(650, 0.08);
@@ -115,19 +124,23 @@ export default function WorkoutSession({
   };
 
   const handleResetTimer = () => {
+    sound.stopAlarmLoop();
     setIsRunning(false);
     setIsTimesUp(false);
     setTimeRemaining(initialDuration);
   };
 
   const handleSetPreset = (seconds: number) => {
+    sound.stopAlarmLoop();
     setIsRunning(false);
     setIsTimesUp(false);
     setInitialDuration(seconds);
     setTimeRemaining(seconds);
   };
 
+  // Tapping the big red button stops the continuous alarm and resets the timer
   const handleDismissTimesUp = () => {
+    sound.stopAlarmLoop();
     setIsTimesUp(false);
     setTimeRemaining(initialDuration);
   };
@@ -158,6 +171,7 @@ export default function WorkoutSession({
   };
 
   const handleFinishWorkout = () => {
+    sound.stopAlarmLoop();
     setShowCelebration(true);
     if (soundEnabled) {
       sound.playCelebration();
@@ -167,6 +181,11 @@ export default function WorkoutSession({
       spread: 70,
       origin: { y: 0.6 },
     });
+  };
+
+  const handleBackToBuilder = () => {
+    sound.stopAlarmLoop();
+    onBackToBuilder();
   };
 
   // Helper values
@@ -189,7 +208,7 @@ export default function WorkoutSession({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onBackToBuilder}
+              onClick={handleBackToBuilder}
               className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
               title="Back to Routine Builder"
             >
@@ -241,7 +260,7 @@ export default function WorkoutSession({
         <section
           className={`relative overflow-hidden rounded-3xl border transition-all p-5 ${
             isTimesUp
-              ? "bg-rose-950/40 border-rose-500/50 shadow-2xl shadow-rose-950/50 animate-pulse"
+              ? "bg-rose-950/40 border-rose-500/60 shadow-2xl shadow-rose-950/60 animate-pulse ring-2 ring-rose-500/50"
               : isRunning
               ? "bg-gradient-to-b from-slate-900 to-slate-900/90 border-emerald-500/40 shadow-lg shadow-emerald-950/20"
               : "bg-slate-900/90 border-slate-800 shadow-md"
@@ -264,7 +283,7 @@ export default function WorkoutSession({
             <div
               className={`text-5xl sm:text-6xl font-black tracking-tight tabular-nums my-1 transition-colors ${
                 isTimesUp
-                  ? "text-rose-400"
+                  ? "text-rose-400 drop-shadow-[0_0_20px_rgba(244,63,94,0.5)]"
                   : isRunning
                   ? "text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]"
                   : "text-slate-100"
@@ -291,14 +310,14 @@ export default function WorkoutSession({
               ))}
             </div>
 
-            {/* Red Alert Button when Time is Up */}
+            {/* Red Alert Button when Time is Up (Tapping dismisses and stops continuous alarm) */}
             {isTimesUp ? (
               <button
                 type="button"
                 onClick={handleDismissTimesUp}
-                className="w-full py-3.5 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm tracking-wide shadow-lg shadow-rose-600/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                className="w-full py-4 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-sm tracking-wide shadow-xl shadow-rose-600/40 transition-all active:scale-[0.98] flex items-center justify-center gap-2 animate-bounce"
               >
-                Time&apos;s Up! 🛑 (Tap to Dismiss)
+                Time&apos;s Up! 🛑 (Tap to Silence Alarm)
               </button>
             ) : (
               /* Timer Control Buttons */
@@ -484,7 +503,7 @@ export default function WorkoutSession({
                 type="button"
                 onClick={() => {
                   setShowCelebration(false);
-                  onBackToBuilder();
+                  handleBackToBuilder();
                 }}
                 className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition-all"
               >
@@ -504,4 +523,3 @@ export default function WorkoutSession({
     </div>
   );
 }
-

@@ -1,11 +1,14 @@
-// Web Audio API synthesizer for countdown and alarm sounds
+// Web Audio API synthesizer for countdown and continuous alarm sounds
 class SoundService {
   private ctx: AudioContext | null = null;
+  private alarmInterval: NodeJS.Timeout | null = null;
 
   private getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
@@ -39,32 +42,53 @@ class SoundService {
     }
   }
 
-  playTimesUp() {
+  // Single burst of alarm sound (3 rapid urgent beeps)
+  private playAlarmBurst() {
     try {
       const ctx = this.getContext();
       if (!ctx) return;
 
       const now = ctx.currentTime;
-      const notes = [587.33, 880, 587.33, 880]; // D5, A5, D5, A5
-      notes.forEach((freq, idx) => {
-        const startTime = now + idx * 0.18;
+      // High-frequency alarm beeps (880Hz A5)
+      const burstNotes = [880, 880, 880];
+      burstNotes.forEach((freq, idx) => {
+        const startTime = now + idx * 0.12;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
 
         osc.type = "square";
         osc.frequency.setValueAtTime(freq, startTime);
 
-        gain.gain.setValueAtTime(0.4, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
+        gain.gain.setValueAtTime(0.35, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.09);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
 
         osc.start(startTime);
-        osc.stop(startTime + 0.16);
+        osc.stop(startTime + 0.1);
       });
     } catch {
       // Audio error handling
+    }
+  }
+
+  // Continuous alarm sound until explicitly stopped
+  startAlarmLoop() {
+    this.stopAlarmLoop();
+    this.playAlarmBurst();
+    this.vibrate([200, 100, 200, 100]);
+
+    this.alarmInterval = setInterval(() => {
+      this.playAlarmBurst();
+      this.vibrate([200, 100, 200, 100]);
+    }, 1000);
+  }
+
+  stopAlarmLoop() {
+    if (this.alarmInterval) {
+      clearInterval(this.alarmInterval);
+      this.alarmInterval = null;
     }
   }
 
@@ -110,4 +134,3 @@ class SoundService {
 }
 
 export const sound = new SoundService();
-
