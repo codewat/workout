@@ -73,3 +73,4 @@ export const EXERCISE_DATABASE: ExerciseDefinition[] = [
   { id: "cd-4", name: "Rowing Machine", category: "Cardio", equipment: "Machine" },
   { id: "cd-5", name: "Stair Climber", category: "Cardio", equipment: "Machine" },
 ];
+
