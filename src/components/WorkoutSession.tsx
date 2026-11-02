@@ -13,7 +13,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Link2,
+  Flame,
   Volume2,
   VolumeX,
   Smartphone,
@@ -410,13 +410,13 @@ export default function WorkoutSession({
 
                 return (
                   <React.Fragment key={exercise.id}>
-                    {exIndex > 0 && (
-                      <div className="flex items-center justify-center gap-2 py-0.5">
-                        <div className="h-3 w-0.5 bg-emerald-500/50 rounded-full" />
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          <Link2 className="w-2.5 h-2.5" /> Connected
+                    {Boolean(exercise.isSuperset) && (
+                      <div className="flex items-center justify-center gap-2 py-1">
+                        <div className="h-px flex-1 bg-amber-500/30" />
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 tracking-wider uppercase">
+                          <Flame className="w-2.5 h-2.5 fill-amber-400" /> Superset
                         </span>
-                        <div className="h-3 w-0.5 bg-emerald-500/50 rounded-full" />
+                        <div className="h-px flex-1 bg-amber-500/30" />
                       </div>
                     )}
                     <button
@@ -425,6 +425,8 @@ export default function WorkoutSession({
                       className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.98] ${
                         isCompleted
                           ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
+                          : Boolean(exercise.isSuperset)
+                          ? "bg-amber-950/20 hover:bg-amber-950/30 text-slate-200 border-amber-500/40"
                           : "bg-slate-950/90 hover:bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700"
                       }`}
                     >

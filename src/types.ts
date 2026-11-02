@@ -1,6 +1,7 @@
 export interface ExerciseItem {
   id: string;
   name: string;
+  isSuperset?: boolean;
 }
 
 export interface WorkoutSetGroup {

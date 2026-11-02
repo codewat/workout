@@ -13,14 +13,14 @@ export const DEFAULT_ROUTINE: WorkoutSetGroup[] = [
     id: "set-2",
     exercises: [
       { id: "ex-2-1", name: "Incline Dumbbell Press" },
-      { id: "ex-2-2", name: "Dumbbell Flyes" }, // Superset
+      { id: "ex-2-2", name: "Dumbbell Flyes", isSuperset: true },
     ],
   },
   {
     id: "set-3",
     exercises: [
       { id: "ex-3-1", name: "Overhead Tricep Extension" },
-      { id: "ex-3-2", name: "Dips" }, // Superset
+      { id: "ex-3-2", name: "Dips", isSuperset: true },
     ],
   },
   {
