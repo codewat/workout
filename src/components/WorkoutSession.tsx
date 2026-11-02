@@ -13,7 +13,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Flame,
+  Link2,
   Volume2,
   VolumeX,
   Smartphone,
@@ -393,16 +393,9 @@ export default function WorkoutSession({
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight text-white">
-                  Set #{selectedSetIndex + 1}
-                </h2>
-                {isSuperset && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> Superset 🔥
-                  </span>
-                )}
-              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white">
+                Set #{selectedSetIndex + 1}
+              </h2>
               <span className="text-xs text-slate-400">
                 {currentGroup.exercises.length}{" "}
                 {currentGroup.exercises.length === 1 ? "exercise" : "exercises"}
@@ -416,16 +409,25 @@ export default function WorkoutSession({
                 const isCompleted = completedExerciseIds.has(exercise.id);
 
                 return (
-                  <button
-                    key={exercise.id}
-                    type="button"
-                    onClick={() => toggleExerciseCompletion(exercise.id)}
-                    className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.98] ${
-                      isCompleted
-                        ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
-                        : "bg-slate-950/90 hover:bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
+                  <React.Fragment key={exercise.id}>
+                    {exIndex > 0 && (
+                      <div className="flex items-center justify-center gap-2 py-0.5">
+                        <div className="h-3 w-0.5 bg-emerald-500/50 rounded-full" />
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          <Link2 className="w-2.5 h-2.5" /> Connected
+                        </span>
+                        <div className="h-3 w-0.5 bg-emerald-500/50 rounded-full" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleExerciseCompletion(exercise.id)}
+                      className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.98] ${
+                        isCompleted
+                          ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
+                          : "bg-slate-950/90 hover:bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700"
+                      }`}
+                    >
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${
@@ -447,6 +449,7 @@ export default function WorkoutSession({
                       )}
                     </div>
                   </button>
+                </React.Fragment>
                 );
               })}
             </div>
