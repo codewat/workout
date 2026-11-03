@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { WorkoutSetGroup } from "../types";
+import { WorkoutSetGroup, getExerciseBoxes } from "../types";
 import {
   Plus,
   Trash2,
@@ -47,7 +47,7 @@ export default function WorkoutBuilder({
     onUpdateWorkoutList(workoutList.filter((g) => g.id !== groupId));
   };
 
-  // Regular "+ Add Exercise" -> NOT a superset (walay naka-butang in between)
+  // Regular "+ Add Exercise" -> adds an exercise in a separate box (not a superset)
   const handleAddExercise = (groupId: string) => {
     const updated = workoutList.map((g) => {
       if (g.id === groupId) {
@@ -68,7 +68,7 @@ export default function WorkoutBuilder({
     onUpdateWorkoutList(updated);
   };
 
-  // "Add Superset" button on a workout row -> inserts linked superset right after that workout
+  // "Add Superset" button on a workout row -> puts the superset workout in the SAME BOX
   const handleAddSuperset = (groupId: string, targetExerciseIndex: number) => {
     const updated = workoutList.map((g) => {
       if (g.id === groupId) {
@@ -76,7 +76,7 @@ export default function WorkoutBuilder({
         newExercises.splice(targetExerciseIndex + 1, 0, {
           id: "ex-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
           name: "",
-          isSuperset: true, // Marked as Superset
+          isSuperset: true, // Marked as Superset to stay in the same box
         });
         return {
           ...g,
@@ -92,12 +92,19 @@ export default function WorkoutBuilder({
     const updated = workoutList.map((g) => {
       if (g.id === groupId) {
         const remaining = g.exercises.filter((ex) => ex.id !== exerciseId);
+        if (remaining.length === 0) {
+          return {
+            ...g,
+            exercises: [{ id: "ex-" + Date.now(), name: "", isSuperset: false }],
+          };
+        }
+        // Ensure the very first exercise in the set doesn't stay marked as superset
+        if (remaining[0].isSuperset) {
+          remaining[0] = { ...remaining[0], isSuperset: false };
+        }
         return {
           ...g,
-          exercises:
-            remaining.length > 0
-              ? remaining
-              : [{ id: "ex-" + Date.now(), name: "", isSuperset: false }],
+          exercises: remaining,
         };
       }
       return g;
@@ -167,6 +174,8 @@ export default function WorkoutBuilder({
             </div>
           ) : (
             workoutList.map((group, index) => {
+              const boxes = getExerciseBoxes(group.exercises);
+
               return (
                 <div
                   key={group.id}
@@ -198,79 +207,90 @@ export default function WorkoutBuilder({
                     </button>
                   </div>
 
-                  {/* Exercises List inside Set */}
-                  <div className="mt-3 space-y-2.5">
-                    {group.exercises.map((exercise, exIndex) => {
-                      const isSupersetItem = Boolean(exercise.isSuperset);
+                  {/* Exercises Box List: Superset workouts are enclosed inside the SAME BOX */}
+                  <div className="mt-3.5 space-y-3">
+                    {boxes.map((box) => (
+                      <div
+                        key={box.id}
+                        className={`rounded-2xl transition-all ${
+                          box.isSupersetBox
+                            ? "border-2 border-amber-500/40 bg-amber-950/15 p-3 space-y-2.5 shadow-md shadow-amber-950/20"
+                            : "border border-slate-800/90 bg-slate-950/40 p-2.5"
+                        }`}
+                      >
+                        {/* Header for Superset Box */}
+                        {box.isSupersetBox && (
+                          <div className="flex items-center justify-between pb-1 px-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                              <Flame className="w-3 h-3 fill-amber-400" /> Superset
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              Perform back-to-back
+                            </span>
+                          </div>
+                        )}
 
-                      return (
-                        <React.Fragment key={exercise.id}>
-                          {/* If Add Superset was clicked: Show "Superset" in between */}
-                          {/* If + Add Exercise was clicked: NOTHING in between */}
-                          {isSupersetItem && (
-                            <div className="flex items-center justify-center gap-2 py-1">
-                              <div className="h-px flex-1 bg-amber-500/30" />
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 tracking-wider uppercase shadow-sm">
-                                <Flame className="w-3 h-3 fill-amber-400" /> Superset
-                              </span>
-                              <div className="h-px flex-1 bg-amber-500/30" />
-                            </div>
-                          )}
+                        {box.items.map(({ exercise, originalIndex }, itemIndex) => (
+                          <React.Fragment key={exercise.id}>
+                            {/* In-between divider inside the same superset box */}
+                            {itemIndex > 0 && (
+                              <div className="flex items-center justify-center gap-2 py-0.5">
+                                <div className="h-px flex-1 bg-amber-500/30" />
+                                <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 tracking-wider uppercase">
+                                  <Flame className="w-2.5 h-2.5 fill-amber-400" /> Superset
+                                </span>
+                                <div className="h-px flex-1 bg-amber-500/30" />
+                              </div>
+                            )}
 
-                          {/* Exercise Row (Distinct look if Superset) */}
-                          <div
-                            className={`relative flex items-center gap-2 transition-all ${
-                              isSupersetItem
-                                ? "p-1.5 rounded-2xl bg-amber-950/20 border border-amber-500/30 shadow-inner"
-                                : ""
-                            }`}
-                          >
-                            {/* Autocomplete Input with Search */}
-                            <ExerciseAutocomplete
-                              value={exercise.name}
-                              onChange={(newName) =>
-                                handleExerciseNameChange(group.id, exercise.id, newName)
-                              }
-                              exerciseIndex={exIndex}
-                            />
+                            <div className="relative flex items-center gap-2">
+                              {/* Autocomplete Input with Search */}
+                              <ExerciseAutocomplete
+                                value={exercise.name}
+                                onChange={(newName) =>
+                                  handleExerciseNameChange(group.id, exercise.id, newName)
+                                }
+                                exerciseIndex={originalIndex}
+                              />
 
-                            {/* Add Superset button directly on this workout row */}
-                            <button
-                              type="button"
-                              onClick={() => handleAddSuperset(group.id, exIndex)}
-                              className="p-2.5 sm:px-3 sm:py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 transition-all"
-                              title="Add superset connected to this workout"
-                            >
-                              <Flame className="w-3.5 h-3.5 fill-amber-400" />
-                              <span className="hidden sm:inline">Add Superset</span>
-                            </button>
-
-                            {/* Delete individual exercise if there's more than one */}
-                            {group.exercises.length > 1 && (
+                              {/* Add Superset button (adds directly into this SAME BOX) */}
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setDeleteTarget({
-                                    isOpen: true,
-                                    type: "EXERCISE",
-                                    groupId: group.id,
-                                    exerciseId: exercise.id,
-                                    title: "Delete Workout",
-                                    description: `Are you sure you want to delete "${
-                                      exercise.name.trim() || `Exercise #${exIndex + 1}`
-                                    }"?`,
-                                  })
-                                }
-                                className="p-2.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors flex-shrink-0"
-                                title="Delete this workout"
+                                onClick={() => handleAddSuperset(group.id, originalIndex)}
+                                className="p-2.5 sm:px-3 sm:py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 transition-all"
+                                title="Add superset inside this same box"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Flame className="w-3.5 h-3.5 fill-amber-400" />
+                                <span className="hidden sm:inline">Add Superset</span>
                               </button>
-                            )}
-                          </div>
-                        </React.Fragment>
-                      );
-                    })}
+
+                              {/* Delete button if set has multiple exercises */}
+                              {group.exercises.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setDeleteTarget({
+                                      isOpen: true,
+                                      type: "EXERCISE",
+                                      groupId: group.id,
+                                      exerciseId: exercise.id,
+                                      title: "Delete Workout",
+                                      description: `Are you sure you want to delete "${
+                                        exercise.name.trim() || `Exercise #${originalIndex + 1}`
+                                      }"?`,
+                                    })
+                                  }
+                                  className="p-2.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors flex-shrink-0"
+                                  title="Delete this workout"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    ))}
                   </div>
 
                   {/* Action Button inside Card: ONLY "+ Add Exercise" */}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { WorkoutSetGroup } from "../types";
+import { WorkoutSetGroup, getExerciseBoxes } from "../types";
 import { sound } from "../lib/audio";
 import { wakeLockManager } from "../lib/wakeLock";
 import confetti from "canvas-confetti";
@@ -404,56 +404,85 @@ export default function WorkoutSession({
 
             {/* Clickable Exercise Cards */}
             <div className="space-y-3">
-              {currentGroup.exercises.map((exercise, exIndex) => {
-                const displayName = exercise.name.trim() || `Exercise ${exIndex + 1}`;
-                const isCompleted = completedExerciseIds.has(exercise.id);
-
-                return (
-                  <React.Fragment key={exercise.id}>
-                    {Boolean(exercise.isSuperset) && (
-                      <div className="flex items-center justify-center gap-2 py-1">
-                        <div className="h-px flex-1 bg-amber-500/30" />
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 tracking-wider uppercase">
-                          <Flame className="w-2.5 h-2.5 fill-amber-400" /> Superset
-                        </span>
-                        <div className="h-px flex-1 bg-amber-500/30" />
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => toggleExerciseCompletion(exercise.id)}
-                      className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.98] ${
-                        isCompleted
-                          ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
-                          : Boolean(exercise.isSuperset)
-                          ? "bg-amber-950/20 hover:bg-amber-950/30 text-slate-200 border-amber-500/40"
-                          : "bg-slate-950/90 hover:bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700"
-                      }`}
-                    >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${
-                          isCompleted
-                            ? "bg-white text-emerald-700 border-white"
-                            : "border-slate-700 text-slate-400 bg-slate-900"
-                        }`}
-                      >
-                        {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : exIndex + 1}
-                      </div>
-                      <span className="font-semibold text-base tracking-tight">{displayName}</span>
+              {getExerciseBoxes(currentGroup.exercises).map((box) => (
+                <div
+                  key={box.id}
+                  className={
+                    box.isSupersetBox
+                      ? "rounded-2xl border-2 border-amber-500/40 bg-amber-950/15 p-3 space-y-2.5 shadow-md shadow-amber-950/20"
+                      : "space-y-2"
+                  }
+                >
+                  {box.isSupersetBox && (
+                    <div className="flex items-center justify-between pb-1 px-1">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        <Flame className="w-3 h-3 fill-amber-400" /> Superset
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        Perform back-to-back
+                      </span>
                     </div>
+                  )}
 
-                    <div className="flex items-center">
-                      {isCompleted && (
-                        <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">
-                          Done
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                </React.Fragment>
-                );
-              })}
+                  {box.items.map(({ exercise, originalIndex }, itemIndex) => {
+                    const displayName =
+                      exercise.name.trim() || `Exercise ${originalIndex + 1}`;
+                    const isCompleted = completedExerciseIds.has(exercise.id);
+
+                    return (
+                      <React.Fragment key={exercise.id}>
+                        {itemIndex > 0 && (
+                          <div className="flex items-center justify-center gap-2 py-0.5">
+                            <div className="h-px flex-1 bg-amber-500/30" />
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 tracking-wider uppercase">
+                              <Flame className="w-2.5 h-2.5 fill-amber-400" /> Superset
+                            </span>
+                            <div className="h-px flex-1 bg-amber-500/30" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleExerciseCompletion(exercise.id)}
+                          className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.98] ${
+                            isCompleted
+                              ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
+                              : box.isSupersetBox
+                              ? "bg-slate-900/90 hover:bg-slate-900 text-slate-200 border-amber-500/30"
+                              : "bg-slate-950/90 hover:bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${
+                                isCompleted
+                                  ? "bg-white text-emerald-700 border-white"
+                                  : "border-slate-700 text-slate-400 bg-slate-900"
+                              }`}
+                            >
+                              {isCompleted ? (
+                                <Check className="w-4 h-4 stroke-[3]" />
+                              ) : (
+                                originalIndex + 1
+                              )}
+                            </div>
+                            <span className="font-semibold text-base tracking-tight">
+                              {displayName}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center">
+                            {isCompleted && (
+                              <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">
+                                Done
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
 
             {/* Set Navigation Buttons (Previous & Next Set) */}
