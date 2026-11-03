@@ -6,7 +6,6 @@ import { sound } from "../lib/audio";
 import { wakeLockManager } from "../lib/wakeLock";
 import confetti from "canvas-confetti";
 import {
-  ArrowLeft,
   Play,
   Pause,
   RotateCcw,
@@ -19,11 +18,15 @@ import {
   Smartphone,
   Trophy,
   PartyPopper,
+  Plus,
+  Pencil,
+  Dumbbell,
 } from "lucide-react";
+import SetEditorModal from "./SetEditorModal";
 
 interface WorkoutSessionProps {
   workoutList: WorkoutSetGroup[];
-  onBackToBuilder: () => void;
+  onUpdateWorkoutList: (newList: WorkoutSetGroup[]) => void;
 }
 
 const PRESET_DURATIONS = [
@@ -35,7 +38,7 @@ const PRESET_DURATIONS = [
 
 export default function WorkoutSession({
   workoutList,
-  onBackToBuilder,
+  onUpdateWorkoutList,
 }: WorkoutSessionProps) {
   // Timer State
   const [initialDuration, setInitialDuration] = useState<number>(60);
@@ -56,6 +59,17 @@ export default function WorkoutSession({
   // Completion modal
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
 
+  // Set Editor Pop-up Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    mode: "CREATE" | "EDIT";
+    targetIndex: number;
+  }>({
+    isOpen: false,
+    mode: "CREATE",
+    targetIndex: 0,
+  });
+
   // Timer interval reference
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -75,6 +89,15 @@ export default function WorkoutSession({
       sound.stopAlarmLoop();
     }
   }, [soundEnabled]);
+
+  // Keep selectedSetIndex bounded when workoutList length changes
+  useEffect(() => {
+    if (workoutList.length === 0) {
+      setSelectedSetIndex(0);
+    } else if (selectedSetIndex >= workoutList.length) {
+      setSelectedSetIndex(workoutList.length - 1);
+    }
+  }, [workoutList.length, selectedSetIndex]);
 
   // Timer tick effect
   useEffect(() => {
@@ -183,9 +206,40 @@ export default function WorkoutSession({
     });
   };
 
-  const handleBackToBuilder = () => {
-    sound.stopAlarmLoop();
-    onBackToBuilder();
+  // Modal handlers
+  const handleOpenCreateModal = () => {
+    setModalState({
+      isOpen: true,
+      mode: "CREATE",
+      targetIndex: workoutList.length,
+    });
+  };
+
+  const handleOpenEditModal = (index: number) => {
+    setModalState({
+      isOpen: true,
+      mode: "EDIT",
+      targetIndex: index,
+    });
+  };
+
+  const handleSaveSetFromModal = (savedGroup: WorkoutSetGroup) => {
+    if (modalState.mode === "CREATE") {
+      const updated = [...workoutList, savedGroup];
+      onUpdateWorkoutList(updated);
+      setSelectedSetIndex(updated.length - 1);
+    } else {
+      const updated = workoutList.map((g, idx) =>
+        idx === modalState.targetIndex ? savedGroup : g
+      );
+      onUpdateWorkoutList(updated);
+    }
+  };
+
+  const handleDeleteSetFromModal = () => {
+    const updated = workoutList.filter((_, idx) => idx !== modalState.targetIndex);
+    onUpdateWorkoutList(updated);
+    setSelectedSetIndex((prev) => Math.max(0, Math.min(prev, updated.length - 1)));
   };
 
   // Helper values
@@ -205,18 +259,13 @@ export default function WorkoutSession({
       {/* Top Header */}
       <header className="sticky top-0 z-20 backdrop-blur-md bg-slate-950/85 border-b border-slate-800/80 px-4 py-3">
         <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleBackToBuilder}
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
-              title="Back to Routine Builder"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/20">
+              <Dumbbell className="w-4 h-4 text-slate-950" />
+            </div>
             <div>
-              <h1 className="font-bold text-base text-white leading-tight">Workout Session</h1>
-              <p className="text-xs text-slate-400">
+              <h1 className="font-bold text-sm text-white leading-tight">Workoutwork</h1>
+              <p className="text-[11px] text-slate-400">
                 {completedCount}/{totalExercises} exercises completed ({progressPercent}%)
               </p>
             </div>
@@ -255,7 +304,7 @@ export default function WorkoutSession({
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-xl w-full mx-auto px-4 py-4 space-y-4">
+      <main className="flex-1 max-w-xl w-full mx-auto px-4 py-4 space-y-4 pb-20">
         {/* === 1. FIXED REST TIMER CARD === */}
         <section
           className={`relative overflow-hidden rounded-3xl border transition-all p-5 ${
@@ -353,7 +402,7 @@ export default function WorkoutSession({
           </div>
         </section>
 
-        {/* === 2. SET SELECTOR TABS (Horizontal Scroll) === */}
+        {/* === 2. SET SELECTOR TABS & ADD NEW SET BUTTON === */}
         <section className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
           {workoutList.map((group, index) => {
             const isSelected = selectedSetIndex === index;
@@ -380,10 +429,36 @@ export default function WorkoutSession({
               </button>
             );
           })}
+
+          {/* Add New Set Button right beside the set buttons! */}
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-all active:scale-95 shadow-sm"
+            title="Create a new set"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add New Set</span>
+          </button>
         </section>
 
         {/* === 3. ACTIVE SET CARD & CLICKABLE EXERCISES === */}
-        {currentGroup && (
+        {workoutList.length === 0 ? (
+          <section className="text-center py-12 px-4 rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-3">
+            <Dumbbell className="w-10 h-10 text-slate-600 mx-auto" />
+            <h3 className="font-bold text-white text-base">No sets in this workout yet</h3>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              Tap &ldquo;Add New Set&rdquo; above to create your first set with exercises.
+            </p>
+            <button
+              type="button"
+              onClick={handleOpenCreateModal}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all shadow-md shadow-emerald-500/20"
+            >
+              <Plus className="w-4 h-4" /> Add New Set
+            </button>
+          </section>
+        ) : currentGroup ? (
           <section
             className={`rounded-3xl border transition-all p-5 shadow-xl ${
               isSuperset
@@ -391,15 +466,28 @@ export default function WorkoutSession({
                 : "bg-slate-900/90 border-slate-800"
             }`}
           >
-            {/* Header */}
+            {/* Set Header with Edit Set Button */}
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
-              <h2 className="text-xl font-bold tracking-tight text-white">
-                Set #{selectedSetIndex + 1}
-              </h2>
-              <span className="text-xs text-slate-400">
-                {currentGroup.exercises.length}{" "}
-                {currentGroup.exercises.length === 1 ? "exercise" : "exercises"}
-              </span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold tracking-tight text-white">
+                  Set #{selectedSetIndex + 1}
+                </h2>
+                <span className="text-xs text-slate-400">
+                  ({currentGroup.exercises.length}{" "}
+                  {currentGroup.exercises.length === 1 ? "exercise" : "exercises"})
+                </span>
+              </div>
+
+              {/* Edit Set Button inside the Set Box */}
+              <button
+                type="button"
+                onClick={() => handleOpenEditModal(selectedSetIndex)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 hover:text-white transition-all shadow-sm active:scale-95"
+                title="Edit or delete workouts in this set"
+              >
+                <Pencil className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Edit Set</span>
+              </button>
             </div>
 
             {/* Clickable Exercise Cards */}
@@ -505,8 +593,20 @@ export default function WorkoutSession({
               )}
             </div>
           </section>
-        )}
+        ) : null}
       </main>
+
+      {/* Set Pop-up Modal for Creating / Editing a Single Set */}
+      <SetEditorModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
+        setIndex={modalState.targetIndex}
+        initialGroup={
+          modalState.mode === "EDIT" ? workoutList[modalState.targetIndex] || null : null
+        }
+        onSaveSet={handleSaveSetFromModal}
+        onDeleteSet={modalState.mode === "EDIT" ? handleDeleteSetFromModal : undefined}
+      />
 
       {/* Celebration Modal when workout is completed */}
       {showCelebration && (
@@ -527,11 +627,12 @@ export default function WorkoutSession({
                 type="button"
                 onClick={() => {
                   setShowCelebration(false);
-                  handleBackToBuilder();
+                  setSelectedSetIndex(0);
+                  setCompletedExerciseIds(new Set());
                 }}
                 className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition-all"
               >
-                Back to Routine Builder
+                Restart Workout Session
               </button>
               <button
                 type="button"

@@ -1,14 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import WorkoutBuilder from "../components/WorkoutBuilder";
 import WorkoutSession from "../components/WorkoutSession";
 import { WorkoutSetGroup } from "../types";
 import { loadSavedWorkout, saveWorkoutToStorage, DEFAULT_ROUTINE } from "../lib/storage";
 
 export default function Home() {
   const [workoutList, setWorkoutList] = useState<WorkoutSetGroup[]>(DEFAULT_ROUTINE);
-  const [currentScreen, setCurrentScreen] = useState<"BUILDER" | "SESSION">("SESSION");
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Load from local storage on initial mount
@@ -36,21 +34,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 antialiased selection:bg-emerald-500 selection:text-slate-950 font-sans">
-      {currentScreen === "BUILDER" ? (
-        <WorkoutBuilder
-          workoutList={workoutList}
-          onUpdateWorkoutList={handleUpdateWorkoutList}
-          onStartWorkout={() => {
-            saveWorkoutToStorage(workoutList);
-            setCurrentScreen("SESSION");
-          }}
-        />
-      ) : (
-        <WorkoutSession
-          workoutList={workoutList}
-          onBackToBuilder={() => setCurrentScreen("BUILDER")}
-        />
-      )}
+      <WorkoutSession
+        workoutList={workoutList}
+        onUpdateWorkoutList={handleUpdateWorkoutList}
+      />
     </div>
   );
 }
