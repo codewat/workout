@@ -4,18 +4,60 @@ import React, { useState, useEffect } from "react";
 import WorkoutSession from "../components/WorkoutSession";
 import { WorkoutSetGroup } from "../types";
 import { loadSavedWorkout, saveWorkoutToStorage, DEFAULT_ROUTINE } from "../lib/storage";
+import { decompressRoutine, fetchRoutineFromCloud } from "../lib/sync";
 
 export default function Home() {
   const [workoutList, setWorkoutList] = useState<WorkoutSetGroup[]>(DEFAULT_ROUTINE);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
-  // Load from local storage on initial mount
+  // Load from local storage or URL query on initial mount
   useEffect(() => {
-    const saved = loadSavedWorkout();
-    if (saved && saved.length > 0) {
-      setWorkoutList(saved);
+    async function init() {
+      // Check URL query parameters for cross-device sync
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const compressedData = params.get("d");
+        const syncCode = params.get("code");
+
+        // 1. Direct compressed data in URL (instant without network call)
+        if (compressedData) {
+          const decompressed = decompressRoutine(compressedData);
+          if (decompressed && decompressed.length > 0) {
+            setWorkoutList(decompressed);
+            saveWorkoutToStorage(decompressed);
+            setIsLoaded(true);
+            // Clean URL query without reloading
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+          }
+        }
+
+        // 2. Fetch from cloud code if provided
+        if (syncCode) {
+          try {
+            const fetched = await fetchRoutineFromCloud(syncCode);
+            if (fetched && fetched.length > 0) {
+              setWorkoutList(fetched);
+              saveWorkoutToStorage(fetched);
+              setIsLoaded(true);
+              window.history.replaceState({}, document.title, window.location.pathname);
+              return;
+            }
+          } catch {
+            // Ignore error and fallback to saved
+          }
+        }
+      }
+
+      // Default: load from localStorage
+      const saved = loadSavedWorkout();
+      if (saved && saved.length > 0) {
+        setWorkoutList(saved);
+      }
+      setIsLoaded(true);
     }
-    setIsLoaded(true);
+
+    init();
   }, []);
 
   // Save to local storage whenever workoutList changes

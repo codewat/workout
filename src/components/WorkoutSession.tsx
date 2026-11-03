@@ -21,8 +21,10 @@ import {
   Plus,
   Pencil,
   Dumbbell,
+  Cloud,
 } from "lucide-react";
 import SetEditorModal from "./SetEditorModal";
+import SyncModal from "./SyncModal";
 
 interface WorkoutSessionProps {
   workoutList: WorkoutSetGroup[];
@@ -58,6 +60,9 @@ export default function WorkoutSession({
 
   // Completion modal
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
+
+  // Cross-device Sync Modal State
+  const [showSyncModal, setShowSyncModal] = useState<boolean>(false);
 
   // Set Editor Pop-up Modal State
   const [modalState, setModalState] = useState<{
@@ -272,6 +277,17 @@ export default function WorkoutSession({
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* Cross-Device Sync Button */}
+            <button
+              type="button"
+              onClick={() => setShowSyncModal(true)}
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs font-semibold text-slate-300 hover:text-white hover:border-slate-700 transition-colors flex items-center gap-1.5"
+              title="Sync workouts to phone or other devices"
+            >
+              <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Sync</span>
+            </button>
+
             {/* Screen Wake Lock Toggle */}
             <button
               type="button"
@@ -606,6 +622,17 @@ export default function WorkoutSession({
         }
         onSaveSet={handleSaveSetFromModal}
         onDeleteSet={modalState.mode === "EDIT" ? handleDeleteSetFromModal : undefined}
+      />
+
+      {/* Cross-Device Sync Modal */}
+      <SyncModal
+        isOpen={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        workoutList={workoutList}
+        onApplyRoutine={(newRoutine) => {
+          onUpdateWorkoutList(newRoutine);
+          setSelectedSetIndex(0);
+        }}
       />
 
       {/* Celebration Modal when workout is completed */}
