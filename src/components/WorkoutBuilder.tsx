@@ -230,20 +230,8 @@ export default function WorkoutBuilder({
                           </div>
                         )}
 
-                        {box.items.map(({ exercise, originalIndex }, itemIndex) => (
-                          <React.Fragment key={exercise.id}>
-                            {/* In-between divider inside the same superset box */}
-                            {itemIndex > 0 && (
-                              <div className="flex items-center justify-center gap-2 py-0.5">
-                                <div className="h-px flex-1 bg-amber-500/30" />
-                                <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 tracking-wider uppercase">
-                                  <Flame className="w-2.5 h-2.5 fill-amber-400" /> Superset
-                                </span>
-                                <div className="h-px flex-1 bg-amber-500/30" />
-                              </div>
-                            )}
-
-                            <div className="relative flex items-center gap-2">
+                        {box.items.map(({ exercise, originalIndex }) => (
+                          <div key={exercise.id} className="relative flex items-center gap-2">
                               {/* Autocomplete Input with Search */}
                               <ExerciseAutocomplete
                                 value={exercise.name}
@@ -287,7 +275,6 @@ export default function WorkoutBuilder({
                                 </button>
                               )}
                             </div>
-                          </React.Fragment>
                         ))}
                       </div>
                     ))}

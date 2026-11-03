@@ -424,61 +424,51 @@ export default function WorkoutSession({
                     </div>
                   )}
 
-                  {box.items.map(({ exercise, originalIndex }, itemIndex) => {
+                  {box.items.map(({ exercise, originalIndex }) => {
                     const displayName =
                       exercise.name.trim() || `Exercise ${originalIndex + 1}`;
                     const isCompleted = completedExerciseIds.has(exercise.id);
 
                     return (
-                      <React.Fragment key={exercise.id}>
-                        {itemIndex > 0 && (
-                          <div className="flex items-center justify-center gap-2 py-0.5">
-                            <div className="h-px flex-1 bg-amber-500/30" />
-                            <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 tracking-wider uppercase">
-                              <Flame className="w-2.5 h-2.5 fill-amber-400" /> Superset
-                            </span>
-                            <div className="h-px flex-1 bg-amber-500/30" />
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => toggleExerciseCompletion(exercise.id)}
-                          className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.98] ${
-                            isCompleted
-                              ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
-                              : box.isSupersetBox
-                              ? "bg-slate-900/90 hover:bg-slate-900 text-slate-200 border-amber-500/30"
-                              : "bg-slate-950/90 hover:bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${
-                                isCompleted
-                                  ? "bg-white text-emerald-700 border-white"
-                                  : "border-slate-700 text-slate-400 bg-slate-900"
-                              }`}
-                            >
-                              {isCompleted ? (
-                                <Check className="w-4 h-4 stroke-[3]" />
-                              ) : (
-                                originalIndex + 1
-                              )}
-                            </div>
-                            <span className="font-semibold text-base tracking-tight">
-                              {displayName}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center">
-                            {isCompleted && (
-                              <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">
-                                Done
-                              </span>
+                      <button
+                        key={exercise.id}
+                        type="button"
+                        onClick={() => toggleExerciseCompletion(exercise.id)}
+                        className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.98] ${
+                          isCompleted
+                            ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30"
+                            : box.isSupersetBox
+                            ? "bg-slate-900/90 hover:bg-slate-900 text-slate-200 border-amber-500/30"
+                            : "bg-slate-950/90 hover:bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${
+                              isCompleted
+                                ? "bg-white text-emerald-700 border-white"
+                                : "border-slate-700 text-slate-400 bg-slate-900"
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <Check className="w-4 h-4 stroke-[3]" />
+                            ) : (
+                              originalIndex + 1
                             )}
                           </div>
-                        </button>
-                      </React.Fragment>
+                          <span className="font-semibold text-base tracking-tight">
+                            {displayName}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center">
+                          {isCompleted && (
+                            <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">
+                              Done
+                            </span>
+                          )}
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
