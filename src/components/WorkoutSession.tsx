@@ -95,6 +95,17 @@ export default function WorkoutSession({
     }
   }, [soundEnabled]);
 
+  // Sync alarm stop event (e.g. dismissed from notification or headset controls)
+  useEffect(() => {
+    sound.onStopCallback = () => {
+      setIsTimesUp(false);
+      setTimeRemaining(initialDuration);
+    };
+    return () => {
+      sound.onStopCallback = null;
+    };
+  }, [initialDuration]);
+
   // Keep selectedSetIndex bounded when workoutList length changes
   useEffect(() => {
     if (workoutList.length === 0) {

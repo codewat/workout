@@ -63,6 +63,7 @@ class SoundService {
   private ctx: AudioContext | null = null;
   private alarmInterval: NodeJS.Timeout | null = null;
   private audioElement: HTMLAudioElement | null = null;
+  public onStopCallback: (() => void) | null = null;
 
   private getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
@@ -85,13 +86,8 @@ class SoundService {
     if (typeof window === "undefined") return;
     try {
       this.getContext();
-      if (!this.audioElement) {
-        const url = getAlarmAudioUrl();
-        if (url) {
-          this.audioElement = new Audio(url);
-          this.audioElement.load();
-        }
-      }
+      // Pre-generate alert sound so it's ready instantaneously
+      getAlarmAudioUrl();
     } catch {
       // Ignored
     }
@@ -128,14 +124,11 @@ class SoundService {
     const wavUrl = getAlarmAudioUrl();
     if (wavUrl && typeof window !== "undefined") {
       try {
-        if (!this.audioElement) {
-          this.audioElement = new Audio(wavUrl);
-        } else {
-          this.audioElement.src = wavUrl;
-        }
-        this.audioElement.loop = true;
+        const audio = new Audio(wavUrl);
+        audio.loop = true;
+        this.audioElement = audio;
 
-        const playPromise = this.audioElement.play();
+        const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
             // In case of restriction, fallback to Web Audio
@@ -151,6 +144,18 @@ class SoundService {
             artist: "Workoutwork Timer",
             album: "Rest Timer Alarm",
           });
+
+          // Allow user to silence/dismiss alarm directly from lock screen or headphones
+          try {
+            navigator.mediaSession.setActionHandler("pause", () => {
+              this.stopAlarmLoop();
+            });
+            navigator.mediaSession.setActionHandler("stop", () => {
+              this.stopAlarmLoop();
+            });
+          } catch {
+            // Actions might not be supported in older browsers
+          }
         }
       } catch {
         this.playBeep(880, 0.2, "square");
@@ -166,29 +171,56 @@ class SoundService {
     }, 1200);
   }
 
-  // Stop alarm, silence audio element, release audio focus so Spotify can resume
+  // Stop alarm, release OS audio focus so Spotify automatically resumes
   stopAlarmLoop() {
     if (this.alarmInterval) {
       clearInterval(this.alarmInterval);
       this.alarmInterval = null;
     }
 
+    // Teardown HTMLAudioElement to release hardware AudioTrack / decoder
     if (this.audioElement) {
       try {
         this.audioElement.pause();
         this.audioElement.currentTime = 0;
+        this.audioElement.removeAttribute("src");
+        this.audioElement.load();
+      } catch {
+        // Ignored
+      }
+      this.audioElement = null;
+    }
+
+    // Suspend Web Audio context if running so no ambient audio pipe stays open
+    if (this.ctx && this.ctx.state === "running") {
+      try {
+        this.ctx.suspend().catch(() => {});
       } catch {
         // Ignored
       }
     }
 
-    // Release media focus
+    // Release media focus and notify OS to resume Spotify/YouTube
     if (typeof window !== "undefined" && "mediaSession" in navigator) {
       try {
         navigator.mediaSession.playbackState = "none";
+        navigator.mediaSession.metadata = null;
+        try {
+          navigator.mediaSession.setActionHandler("pause", null);
+          navigator.mediaSession.setActionHandler("stop", null);
+        } catch {
+          // Ignored
+        }
       } catch {
         // Ignored
       }
+    }
+
+    // Notify listeners if registered
+    if (this.onStopCallback) {
+      const cb = this.onStopCallback;
+      this.onStopCallback = null;
+      cb();
     }
   }
 
