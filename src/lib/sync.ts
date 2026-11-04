@@ -97,3 +97,4 @@ export async function generateQRCode(url: string): Promise<string> {
     return "";
   }
 }
+

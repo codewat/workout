@@ -1,7 +1,68 @@
-// Web Audio API synthesizer for countdown and continuous alarm sounds
+// Web Audio & HTML5 Audio service
+// Uses HTMLAudioElement + Media Session API to automatically pause Spotify/YouTube when time is up!
+
+let cachedAlarmUrl: string | null = null;
+
+function getAlarmAudioUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  if (cachedAlarmUrl) return cachedAlarmUrl;
+
+  try {
+    const sampleRate = 22050;
+    const duration = 1.0;
+    const numSamples = Math.floor(sampleRate * duration);
+    const buffer = new ArrayBuffer(44 + numSamples);
+    const view = new DataView(buffer);
+
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    // RIFF WAV Header
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + numSamples, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, 1, true); // 1 channel (mono)
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate, true); // byte rate (sampleRate * 1 * 1)
+    view.setUint16(32, 1, true); // block align
+    view.setUint16(34, 8, true); // 8 bits per sample
+    writeString(36, "data");
+    view.setUint32(40, numSamples, true);
+
+    // Generate 3 urgent square wave alert beeps (880Hz A5)
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      let sample = 128; // silence
+      const inBeep =
+        (t >= 0 && t < 0.15) ||
+        (t >= 0.22 && t < 0.37) ||
+        (t >= 0.44 && t < 0.59);
+
+      if (inBeep) {
+        const wave = Math.sin(2 * Math.PI * 880 * t) > 0 ? 1 : -1;
+        sample = 128 + Math.round(wave * 95);
+      }
+      view.setUint8(44 + i, sample);
+    }
+
+    const blob = new Blob([buffer], { type: "audio/wav" });
+    cachedAlarmUrl = URL.createObjectURL(blob);
+    return cachedAlarmUrl;
+  } catch {
+    return null;
+  }
+}
+
 class SoundService {
   private ctx: AudioContext | null = null;
   private alarmInterval: NodeJS.Timeout | null = null;
+  private audioElement: HTMLAudioElement | null = null;
 
   private getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
@@ -17,6 +78,23 @@ class SoundService {
       this.ctx.resume();
     }
     return this.ctx;
+  }
+
+  // Pre-unlock audio on user gesture (e.g. when pressing start timer)
+  preload() {
+    if (typeof window === "undefined") return;
+    try {
+      this.getContext();
+      if (!this.audioElement) {
+        const url = getAlarmAudioUrl();
+        if (url) {
+          this.audioElement = new Audio(url);
+          this.audioElement.load();
+        }
+      }
+    } catch {
+      // Ignored
+    }
   }
 
   playBeep(freq = 600, duration = 0.1, type: OscillatorType = "sine") {
@@ -42,53 +120,75 @@ class SoundService {
     }
   }
 
-  // Single burst of alarm sound (3 rapid urgent beeps)
-  private playAlarmBurst() {
-    try {
-      const ctx = this.getContext();
-      if (!ctx) return;
-
-      const now = ctx.currentTime;
-      // High-frequency alarm beeps (880Hz A5)
-      const burstNotes = [880, 880, 880];
-      burstNotes.forEach((freq, idx) => {
-        const startTime = now + idx * 0.12;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = "square";
-        osc.frequency.setValueAtTime(freq, startTime);
-
-        gain.gain.setValueAtTime(0.35, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.09);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.1);
-      });
-    } catch {
-      // Audio error handling
-    }
-  }
-
-  // Continuous alarm sound until explicitly stopped
+  // Continuous alarm sound that requests Audio Focus to PAUSE Spotify/YouTube
   startAlarmLoop() {
     this.stopAlarmLoop();
-    this.playAlarmBurst();
-    this.vibrate([200, 100, 200, 100]);
 
+    // 1. Play via HTMLAudioElement to pause background music like Spotify/YouTube
+    const wavUrl = getAlarmAudioUrl();
+    if (wavUrl && typeof window !== "undefined") {
+      try {
+        if (!this.audioElement) {
+          this.audioElement = new Audio(wavUrl);
+        } else {
+          this.audioElement.src = wavUrl;
+        }
+        this.audioElement.loop = true;
+
+        const playPromise = this.audioElement.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // In case of restriction, fallback to Web Audio
+            this.playBeep(880, 0.2, "square");
+          });
+        }
+
+        // Request system audio focus via Media Session API to pause other apps
+        if ("mediaSession" in navigator) {
+          navigator.mediaSession.playbackState = "playing";
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: "Time's Up! 🛑",
+            artist: "Workoutwork Timer",
+            album: "Rest Timer Alarm",
+          });
+        }
+      } catch {
+        this.playBeep(880, 0.2, "square");
+      }
+    } else {
+      this.playBeep(880, 0.2, "square");
+    }
+
+    // 2. Vibrate phone continuously
+    this.vibrate([300, 150, 300, 150, 400]);
     this.alarmInterval = setInterval(() => {
-      this.playAlarmBurst();
-      this.vibrate([200, 100, 200, 100]);
-    }, 1000);
+      this.vibrate([300, 150, 300, 150, 400]);
+    }, 1200);
   }
 
+  // Stop alarm, silence audio element, release audio focus so Spotify can resume
   stopAlarmLoop() {
     if (this.alarmInterval) {
       clearInterval(this.alarmInterval);
       this.alarmInterval = null;
+    }
+
+    if (this.audioElement) {
+      try {
+        this.audioElement.pause();
+        this.audioElement.currentTime = 0;
+      } catch {
+        // Ignored
+      }
+    }
+
+    // Release media focus
+    if (typeof window !== "undefined" && "mediaSession" in navigator) {
+      try {
+        navigator.mediaSession.playbackState = "none";
+      } catch {
+        // Ignored
+      }
     }
   }
 

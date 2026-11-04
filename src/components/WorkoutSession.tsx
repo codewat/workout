@@ -141,6 +141,7 @@ export default function WorkoutSession({
   }, [isRunning, soundEnabled]);
 
   const handleStartTimer = () => {
+    sound.preload();
     sound.stopAlarmLoop();
     setIsTimesUp(false);
     setIsRunning(true);
