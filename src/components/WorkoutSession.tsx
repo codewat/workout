@@ -12,6 +12,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Flame,
   Volume2,
   VolumeX,
@@ -48,6 +50,7 @@ export default function WorkoutSession({
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const isRunningRef = useRef<boolean>(false);
   const [isTimesUp, setIsTimesUp] = useState<boolean>(false);
+  const [isTimerCollapsed, setIsTimerCollapsed] = useState<boolean>(false);
 
   // Active Set Navigation
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
@@ -187,6 +190,7 @@ export default function WorkoutSession({
       setIsRunning(false);
       isRunningRef.current = false;
       setIsTimesUp(true);
+      setIsTimerCollapsed(false);
       sound.stopKeepAlive();
       workerRef.current?.postMessage("STOP");
       if (intervalRef.current) {
@@ -500,102 +504,193 @@ export default function WorkoutSession({
 
       {/* Main Container */}
       <main className="flex-1 max-w-xl w-full mx-auto px-4 py-4 space-y-4 pb-20">
-        {/* === 1. FIXED REST TIMER CARD === */}
-        <section
-          className={`relative overflow-hidden rounded-3xl border transition-all p-5 ${
-            isTimesUp
-              ? "bg-rose-950/40 border-rose-500/60 shadow-2xl shadow-rose-950/60 animate-pulse ring-2 ring-rose-500/50"
-              : isRunning
-              ? "bg-gradient-to-b from-slate-900 to-slate-900/90 border-emerald-500/40 shadow-lg shadow-emerald-950/20"
-              : "bg-slate-900/90 border-slate-800 shadow-md"
-          }`}
-        >
-          {/* Progress bar background on active timer */}
-          {isRunning && (
-            <div
-              className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-1000 ease-linear"
-              style={{ width: `${timerPercentage}%` }}
-            />
-          )}
+        {/* === 1. HOVER / STICKY REST TIMER CARD === */}
+        <div className="sticky top-[56px] z-10 -mx-4 px-4 pt-1 pb-2 bg-slate-950/90 backdrop-blur-md">
+          <section
+            className={`relative overflow-hidden rounded-3xl border transition-all ${
+              isTimerCollapsed ? "p-3 sm:p-3.5" : "p-4 sm:p-5"
+            } ${
+              isTimesUp
+                ? "bg-rose-950/50 border-rose-500/70 shadow-2xl shadow-rose-950/60 animate-pulse ring-2 ring-rose-500/50"
+                : isRunning
+                ? "bg-gradient-to-b from-slate-900 to-slate-900/90 border-emerald-500/40 shadow-lg shadow-emerald-950/30"
+                : "bg-slate-900/90 border-slate-800 shadow-md"
+            }`}
+          >
+            {/* Progress bar background on active timer */}
+            {isRunning && (
+              <div
+                className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-1000 ease-linear"
+                style={{ width: `${timerPercentage}%` }}
+              />
+            )}
 
-          <div className="flex flex-col items-center justify-center text-center">
-            <span className="text-xs uppercase tracking-widest font-semibold text-slate-400 mb-1">
-              Rest Timer
-            </span>
+            {isTimerCollapsed ? (
+              /* Collapsed Slim Floating Bar */
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400">
+                    Rest:
+                  </span>
+                  <span
+                    className={`text-2xl font-black tabular-nums transition-colors ${
+                      isTimesUp
+                        ? "text-rose-400 animate-pulse"
+                        : isRunning
+                        ? "text-emerald-400"
+                        : "text-slate-100"
+                    }`}
+                  >
+                    {mins}:{secs}
+                  </span>
+                </div>
 
-            {/* Digital Clock Display */}
-            <div
-              className={`text-5xl sm:text-6xl font-black tracking-tight tabular-nums my-1 transition-colors ${
-                isTimesUp
-                  ? "text-rose-400 drop-shadow-[0_0_20px_rgba(244,63,94,0.5)]"
-                  : isRunning
-                  ? "text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]"
-                  : "text-slate-100"
-              }`}
-            >
-              {mins}:{secs}
-            </div>
+                <div className="flex items-center gap-2">
+                  {isTimesUp ? (
+                    <button
+                      type="button"
+                      onClick={handleDismissTimesUp}
+                      className="py-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs shadow-lg shadow-rose-600/30 animate-bounce flex items-center gap-1"
+                    >
+                      Silence Alarm 🛑
+                    </button>
+                  ) : (
+                    <>
+                      {isRunning ? (
+                        <button
+                          type="button"
+                          onClick={handlePauseTimer}
+                          className="py-1 px-2.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center gap-1"
+                          title="Pause"
+                        >
+                          <Pause className="w-3.5 h-3.5 fill-amber-300" /> Pause
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStartTimer}
+                          className="py-1 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 flex items-center gap-1"
+                          title="Start"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-slate-950" /> Start
+                        </button>
+                      )}
 
-            {/* Duration Presets */}
-            <div className="flex items-center gap-1.5 mt-3 mb-4">
-              {PRESET_DURATIONS.map((preset) => (
-                <button
-                  key={preset.seconds}
-                  type="button"
-                  onClick={() => handleSetPreset(preset.seconds)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                    initialDuration === preset.seconds && !isTimesUp
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50"
-                      : "bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-slate-700/60"
+                      <button
+                        type="button"
+                        onClick={handleResetTimer}
+                        className="p-1.5 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:text-white"
+                        title="Reset"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setIsTimerCollapsed(false)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                    title="Expand timer"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Expanded Rest Timer Card */
+              <div className="flex flex-col items-center justify-center text-center relative">
+                {/* Header Row: Centered Label + Collapse Toggle */}
+                <div className="w-full flex items-center justify-between mb-1">
+                  <span className="w-6" />
+                  <span className="text-xs uppercase tracking-widest font-semibold text-slate-400">
+                    Rest Timer
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsTimerCollapsed(true)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+                    title="Collapse timer to slim bar"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Digital Clock Display */}
+                <div
+                  className={`text-5xl sm:text-6xl font-black tracking-tight tabular-nums my-1 transition-colors ${
+                    isTimesUp
+                      ? "text-rose-400 drop-shadow-[0_0_20px_rgba(244,63,94,0.5)]"
+                      : isRunning
+                      ? "text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]"
+                      : "text-slate-100"
                   }`}
                 >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
+                  {mins}:{secs}
+                </div>
 
-            {/* Red Alert Button when Time is Up (Tapping dismisses and stops continuous alarm) */}
-            {isTimesUp ? (
-              <button
-                type="button"
-                onClick={handleDismissTimesUp}
-                className="w-full py-4 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-sm tracking-wide shadow-xl shadow-rose-600/40 transition-all active:scale-[0.98] flex items-center justify-center gap-2 animate-bounce"
-              >
-                Time&apos;s Up! 🛑 (Tap to Silence Alarm)
-              </button>
-            ) : (
-              /* Timer Control Buttons */
-              <div className="flex items-center gap-3 w-full justify-center">
-                {isRunning ? (
+                {/* Duration Presets */}
+                <div className="flex items-center gap-1.5 mt-2.5 mb-3.5">
+                  {PRESET_DURATIONS.map((preset) => (
+                    <button
+                      key={preset.seconds}
+                      type="button"
+                      onClick={() => handleSetPreset(preset.seconds)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                        initialDuration === preset.seconds && !isTimesUp
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50"
+                          : "bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-slate-700/60"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Red Alert Button when Time is Up */}
+                {isTimesUp ? (
                   <button
                     type="button"
-                    onClick={handlePauseTimer}
-                    className="flex-1 py-3 px-5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-sm hover:bg-amber-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    onClick={handleDismissTimesUp}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-sm tracking-wide shadow-xl shadow-rose-600/40 transition-all active:scale-[0.98] flex items-center justify-center gap-2 animate-bounce"
                   >
-                    <Pause className="w-4 h-4 fill-amber-300" /> Pause
+                    Time&apos;s Up! 🛑 (Tap to Silence Alarm)
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleStartTimer}
-                    className="flex-1 py-3 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-md shadow-emerald-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                  >
-                    <Play className="w-4 h-4 fill-slate-950" /> Start Timer
-                  </button>
-                )}
+                  /* Timer Control Buttons */
+                  <div className="flex items-center gap-3 w-full justify-center">
+                    {isRunning ? (
+                      <button
+                        type="button"
+                        onClick={handlePauseTimer}
+                        className="flex-1 py-2.5 px-5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-sm hover:bg-amber-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                      >
+                        <Pause className="w-4 h-4 fill-amber-300" /> Pause
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleStartTimer}
+                        className="flex-1 py-2.5 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-md shadow-emerald-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                      >
+                        <Play className="w-4 h-4 fill-slate-950" /> Start Timer
+                      </button>
+                    )}
 
-                <button
-                  type="button"
-                  onClick={handleResetTimer}
-                  className="py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-all active:scale-[0.98] flex items-center gap-1.5 text-sm font-semibold"
-                  title="Reset Timer"
-                >
-                  <RotateCcw className="w-4 h-4" /> Reset
-                </button>
+                    <button
+                      type="button"
+                      onClick={handleResetTimer}
+                      className="py-2.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-all active:scale-[0.98] flex items-center gap-1.5 text-sm font-semibold"
+                      title="Reset Timer"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Reset
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        </section>
+          </section>
+        </div>
 
         {/* === 2. SET SELECTOR TABS & ADD NEW SET BUTTON === */}
         <section className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">

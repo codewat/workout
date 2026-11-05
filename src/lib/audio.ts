@@ -78,7 +78,7 @@ class SoundService {
 
   private getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
-    if (!this.ctx) {
+    if (!this.ctx || this.ctx.state === "closed") {
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -310,7 +310,7 @@ class SoundService {
     }, 1200);
   }
 
-  // Stop alarm, release OS audio focus so Spotify automatically resumes
+  // Stop alarm, cleanly abandon OS audio focus so system audio hardware is released
   stopAlarmLoop() {
     this.stopWebAudioAlarm();
     this.stopKeepAlive();
@@ -325,7 +325,7 @@ class SoundService {
       try {
         this.audioElement.pause();
         this.audioElement.currentTime = 0;
-        this.audioElement.removeAttribute("src");
+        this.audioElement.src = "";
         this.audioElement.load();
       } catch {
         // Ignored
@@ -333,16 +333,19 @@ class SoundService {
       this.audioElement = null;
     }
 
-    // Suspend Web Audio context if running so no ambient audio pipe stays open
-    if (this.ctx && this.ctx.state === "running") {
+    // Completely close and destroy Web Audio context so the OS audio driver track is freed
+    if (this.ctx) {
       try {
-        this.ctx.suspend().catch(() => {});
+        if (this.ctx.state !== "closed") {
+          this.ctx.close().catch(() => {});
+        }
       } catch {
         // Ignored
       }
+      this.ctx = null;
     }
 
-    // Release media focus and notify OS to resume Spotify/YouTube
+    // Cleanly abandon media session and clear actions
     if (typeof window !== "undefined" && "mediaSession" in navigator) {
       try {
         navigator.mediaSession.playbackState = "none";
@@ -350,6 +353,7 @@ class SoundService {
         try {
           navigator.mediaSession.setActionHandler("pause", null);
           navigator.mediaSession.setActionHandler("stop", null);
+          navigator.mediaSession.setActionHandler("play", null);
         } catch {
           // Ignored
         }
