@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { WorkoutSetGroup, getExerciseBoxes } from "../types";
-import { sound, AudioFocusMode } from "../lib/audio";
+import { sound } from "../lib/audio";
 import { wakeLockManager } from "../lib/wakeLock";
 import confetti from "canvas-confetti";
 import {
@@ -51,30 +51,6 @@ export default function WorkoutSession({
   const isRunningRef = useRef<boolean>(false);
   const [isTimesUp, setIsTimesUp] = useState<boolean>(false);
   const [isTimerCollapsed, setIsTimerCollapsed] = useState<boolean>(false);
-  const [focusMode, setFocusMode] = useState<AudioFocusMode>("auto-resume");
-
-  // Load saved Spotify focus mode preference
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("workout_focus_mode") as AudioFocusMode | null;
-      if (saved === "auto-resume" || saved === "full-pause") {
-        setFocusMode(saved);
-        sound.setFocusMode(saved);
-      } else {
-        setFocusMode("auto-resume");
-        sound.setFocusMode("auto-resume");
-      }
-    }
-  }, []);
-
-  const toggleFocusMode = () => {
-    const nextMode: AudioFocusMode = focusMode === "auto-resume" ? "full-pause" : "auto-resume";
-    setFocusMode(nextMode);
-    sound.setFocusMode(nextMode);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("workout_focus_mode", nextMode);
-    }
-  };
 
   // Active Set Navigation
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
@@ -624,29 +600,12 @@ export default function WorkoutSession({
             ) : (
               /* Expanded Rest Timer Card */
               <div className="flex flex-col items-center justify-center text-center relative">
-                {/* Header Row: Focus Mode Badge + Centered Label + Collapse Toggle */}
-                <div className="w-full flex items-center justify-between mb-1.5">
-                  <button
-                    type="button"
-                    onClick={toggleFocusMode}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors flex items-center gap-1 ${
-                      focusMode === "auto-resume"
-                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25"
-                        : "bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25"
-                    }`}
-                    title={
-                      focusMode === "auto-resume"
-                        ? "Auto-Resume: Spotify ducks during alarm and automatically plays back on stop"
-                        : "Full Pause: Spotify stops completely; tap headset or notification to resume"
-                    }
-                  >
-                    {focusMode === "auto-resume" ? "🎵 Auto-Resume" : "⏸️ Full Pause"}
-                  </button>
-
+                {/* Header Row: Centered Label + Collapse Toggle */}
+                <div className="w-full flex items-center justify-between mb-1">
+                  <span className="w-6" />
                   <span className="text-xs uppercase tracking-widest font-semibold text-slate-400">
                     Rest Timer
                   </span>
-
                   <button
                     type="button"
                     onClick={() => setIsTimerCollapsed(true)}

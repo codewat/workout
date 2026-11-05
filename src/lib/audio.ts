@@ -1,21 +1,18 @@
 // Web Audio & HTML5 Audio service
 // Uses HTMLAudioElement + Media Session API to automatically pause Spotify/YouTube when time is up!
 
-export type AudioFocusMode = "auto-resume" | "full-pause";
+let cachedAlarmUrl: string | null = null;
 
-let cachedAutoResumeUrl: string | null = null;
-let cachedFullPauseUrl: string | null = null;
-
-export function getAlarmAudioUrl(mode: AudioFocusMode = "auto-resume"): string | null {
+export function getAlarmAudioUrl(): string | null {
   if (typeof window === "undefined") return null;
-  if (mode === "auto-resume" && cachedAutoResumeUrl) return cachedAutoResumeUrl;
-  if (mode === "full-pause" && cachedFullPauseUrl) return cachedFullPauseUrl;
+  if (cachedAlarmUrl) return cachedAlarmUrl;
 
   try {
     const sampleRate = 44100;
-    // Auto-Resume Mode: duration = 1.0s (Android classifies as Transient Ducking -> Spotify ducks, then auto-resumes on timer stop!)
-    // Full-Pause Mode: duration = 6.0s (> 5s Android classifies as AudioFocus Gain -> Spotify completely pauses)
-    const duration = mode === "auto-resume" ? 1.0 : 6.0;
+    // Transient Audio Focus (duration = 1.0s):
+    // Tells Android to temporarily interrupt background music (Spotify/YouTube) during alarm,
+    // and when the timer is stopped, Android AUTOMATICALLY resumes music playback!
+    const duration = 1.0;
     const numSamples = Math.floor(sampleRate * duration);
     const dataSize = numSamples * 2; // 16-bit PCM (2 bytes per sample)
     const buffer = new ArrayBuffer(44 + dataSize);
@@ -42,7 +39,7 @@ export function getAlarmAudioUrl(mode: AudioFocusMode = "auto-resume"): string |
     writeString(36, "data");
     view.setUint32(40, dataSize, true);
 
-    // Generate repeating alert beeps across the duration
+    // Generate repeating alert beeps across the 1 second
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
       const secondPart = t % 1.0;
@@ -60,13 +57,8 @@ export function getAlarmAudioUrl(mode: AudioFocusMode = "auto-resume"): string |
     }
 
     const blob = new Blob([buffer], { type: "audio/wav" });
-    const url = URL.createObjectURL(blob);
-    if (mode === "auto-resume") {
-      cachedAutoResumeUrl = url;
-    } else {
-      cachedFullPauseUrl = url;
-    }
-    return url;
+    cachedAlarmUrl = URL.createObjectURL(blob);
+    return cachedAlarmUrl;
   } catch {
     return null;
   }
@@ -77,15 +69,6 @@ class SoundService {
   private alarmInterval: NodeJS.Timeout | null = null;
   private audioElement: HTMLAudioElement | null = null;
   public onStopCallback: (() => void) | null = null;
-  private focusMode: AudioFocusMode = "auto-resume";
-
-  setFocusMode(mode: AudioFocusMode) {
-    this.focusMode = mode;
-  }
-
-  getFocusMode(): AudioFocusMode {
-    return this.focusMode;
-  }
 
   // Background audio keep-alive (keeps Android/Chrome from sleeping while Spotify plays)
   private keepAliveNode: ScriptProcessorNode | null = null;
@@ -117,7 +100,7 @@ class SoundService {
       if (ctx && ctx.state === "suspended") {
         ctx.resume().catch(() => {});
       }
-      const url = getAlarmAudioUrl(this.focusMode);
+      const url = getAlarmAudioUrl();
       if (url) {
         if (!this.audioElement) {
           this.audioElement = new Audio(url);
@@ -278,7 +261,7 @@ class SoundService {
 
     // 2. Unmute pre-unlocked HTMLAudioElement to claim OS Audio Focus and pause Spotify/YouTube/Facebook
     try {
-      const wavUrl = getAlarmAudioUrl(this.focusMode);
+      const wavUrl = getAlarmAudioUrl();
       if (!this.audioElement && wavUrl && typeof window !== "undefined") {
         this.audioElement = new Audio(wavUrl);
         this.audioElement.loop = true;
