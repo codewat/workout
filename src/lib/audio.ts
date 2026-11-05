@@ -9,7 +9,11 @@ function getAlarmAudioUrl(): string | null {
 
   try {
     const sampleRate = 44100;
-    const duration = 1.0;
+    // Android Chromium requires duration > 5.0 seconds to classify audio as "Persistent"
+    // (MediaContentType::Persistent) instead of "Transient".
+    // When > 5s, Chromium requests exclusive AUDIOFOCUS_GAIN which forces Spotify/YouTube to PAUSE
+    // completely instead of just ducking/lowering the volume!
+    const duration = 6.0;
     const numSamples = Math.floor(sampleRate * duration);
     const dataSize = numSamples * 2; // 16-bit PCM (2 bytes per sample)
     const buffer = new ArrayBuffer(44 + dataSize);
@@ -36,14 +40,15 @@ function getAlarmAudioUrl(): string | null {
     writeString(36, "data");
     view.setUint32(40, dataSize, true);
 
-    // Generate 3 urgent square wave alert beeps (880Hz A5)
+    // Generate repeating alert beeps across the 6 seconds
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
+      const secondPart = t % 1.0;
       let sample = 0; // silence (16-bit signed: 0)
       const inBeep =
-        (t >= 0 && t < 0.15) ||
-        (t >= 0.22 && t < 0.37) ||
-        (t >= 0.44 && t < 0.59);
+        (secondPart >= 0 && secondPart < 0.15) ||
+        (secondPart >= 0.22 && secondPart < 0.37) ||
+        (secondPart >= 0.44 && secondPart < 0.59);
 
       if (inBeep) {
         const wave = Math.sin(2 * Math.PI * 880 * t) > 0 ? 1 : -1;
