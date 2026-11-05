@@ -22,8 +22,6 @@ import {
   Pencil,
   Dumbbell,
   Cloud,
-  Bell,
-  BellOff,
 } from "lucide-react";
 import SetEditorModal from "./SetEditorModal";
 import SyncModal from "./SyncModal";
@@ -62,12 +60,6 @@ export default function WorkoutSession({
   const soundEnabledRef = useRef<boolean>(true);
   const [screenAwake, setScreenAwake] = useState<boolean>(false);
 
-  // Notification State (Top status bar notifications)
-  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
-  const notificationsEnabledRef = useRef<boolean>(true);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
-  const notificationPermissionRef = useRef<NotificationPermission>("default");
-
   // Completion modal
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
 
@@ -90,8 +82,6 @@ export default function WorkoutSession({
   const workerRef = useRef<Worker | null>(null);
   const endTimeRef = useRef<number | null>(null);
   const lastBeepRef = useRef<number | null>(null);
-  const lastNotifSecondRef = useRef<number | null>(null);
-  const activeNotificationRef = useRef<Notification | null>(null);
 
   // Keep refs synchronized with state to prevent stale closures
   useEffect(() => {
@@ -102,29 +92,13 @@ export default function WorkoutSession({
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
-  useEffect(() => {
-    notificationsEnabledRef.current = notificationsEnabled;
-  }, [notificationsEnabled]);
-
-  useEffect(() => {
-    notificationPermissionRef.current = notificationPermission;
-  }, [notificationPermission]);
-
-  // Check notification permission on mount
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setNotificationPermission(Notification.permission);
-      notificationPermissionRef.current = Notification.permission;
-    }
-  }, []);
-
   // Request wake lock on component mount so screen doesn't sleep
   useEffect(() => {
     wakeLockManager.requestWakeLock((active) => setScreenAwake(active));
     return () => {
       wakeLockManager.releaseWakeLock();
       sound.stopAlarmLoop();
-      clearTimerNotification();
+      sound.stopKeepAlive();
       if (intervalRef.current) clearInterval(intervalRef.current);
       workerRef.current?.terminate();
     };
@@ -137,10 +111,9 @@ export default function WorkoutSession({
     }
   }, [soundEnabled]);
 
-  // Sync alarm stop event (e.g. dismissed from notification or headset controls)
+  // Sync alarm stop event (e.g. dismissed from lockscreen or headset controls)
   useEffect(() => {
     sound.onStopCallback = () => {
-      clearTimerNotification();
       setIsTimesUp(false);
       setTimeRemaining(initialDuration);
       if (typeof document !== "undefined") {
@@ -160,104 +133,6 @@ export default function WorkoutSession({
       setSelectedSetIndex(workoutList.length - 1);
     }
   }, [workoutList.length, selectedSetIndex]);
-
-  // Notification helpers for top status bar
-  const showTimerNotification = (remaining: number, isFinal = false) => {
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (notificationPermissionRef.current !== "granted" || !notificationsEnabledRef.current) return;
-
-    try {
-      const minsLeft = Math.floor(remaining / 60);
-      const secsLeft = (remaining % 60).toString().padStart(2, "0");
-      const timeStr = `${minsLeft}:${secsLeft}`;
-      const title = isFinal ? "🛑 TIME'S UP! (0:00)" : `⏱️ Rest Timer: ${timeStr}`;
-      const body = isFinal
-        ? "Rest period finished! Ready for the next set."
-        : "Workoutwork • Tap to return to workout";
-
-      const options: NotificationOptions & { renotify?: boolean; silent?: boolean } = {
-        tag: "workoutwork-rest-timer",
-        body,
-        icon: "/favicon.ico",
-        badge: "/favicon.ico",
-        silent: !isFinal,
-        renotify: isFinal,
-      };
-
-      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready
-          .then((reg) => reg.showNotification(title, options))
-          .catch(() => {});
-      } else {
-        if (activeNotificationRef.current) {
-          try {
-            activeNotificationRef.current.close();
-          } catch {}
-        }
-        const notif = new Notification(title, options);
-        activeNotificationRef.current = notif;
-        notif.onclick = () => {
-          try {
-            window.focus();
-          } catch {}
-          if (isFinal) {
-            sound.stopAlarmLoop();
-            setIsTimesUp(false);
-          }
-          try {
-            notif.close();
-          } catch {}
-        };
-      }
-    } catch {
-      // Handled silently
-    }
-  };
-
-  const clearTimerNotification = () => {
-    if (activeNotificationRef.current) {
-      try {
-        activeNotificationRef.current.close();
-      } catch {}
-      activeNotificationRef.current = null;
-    }
-    if (typeof window !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.ready
-        .then((reg) => {
-          reg.getNotifications({ tag: "workoutwork-rest-timer" }).then((notifs) => {
-            notifs.forEach((n) => n.close());
-          }).catch(() => {});
-        })
-        .catch(() => {});
-    }
-  };
-
-  const handleToggleNotifications = async () => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      alert("Notifications are not supported in this browser.");
-      return;
-    }
-
-    if (Notification.permission === "default") {
-      try {
-        const perm = await Notification.requestPermission();
-        setNotificationPermission(perm);
-        notificationPermissionRef.current = perm;
-        if (perm === "granted") {
-          setNotificationsEnabled(true);
-          notificationsEnabledRef.current = true;
-        }
-      } catch {
-        // Ignored
-      }
-    } else if (Notification.permission === "granted") {
-      setNotificationsEnabled((prev) => !prev);
-    } else if (Notification.permission === "denied") {
-      alert(
-        "Notifications are blocked in your browser settings. Please enable notifications for this site to view the rest timer at the top of your screen."
-      );
-    }
-  };
 
   // Initialize background timer Web Worker so timers don't throttle when app is in background
   useEffect(() => {
@@ -322,7 +197,6 @@ export default function WorkoutSession({
       if (soundEnabledRef.current) {
         sound.startAlarmLoop();
       }
-      showTimerNotification(0, true);
       return;
     }
 
@@ -331,20 +205,6 @@ export default function WorkoutSession({
       if (lastBeepRef.current !== remaining) {
         lastBeepRef.current = remaining;
         sound.playBeep(440, 0.08);
-      }
-    }
-
-    // Update status bar notification if backgrounded
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState === "hidden" &&
-      notificationsEnabledRef.current &&
-      notificationPermissionRef.current === "granted"
-    ) {
-      const lastNotif = lastNotifSecondRef.current;
-      if (lastNotif === null || lastNotif - remaining >= 5 || remaining <= 5) {
-        lastNotifSecondRef.current = remaining;
-        showTimerNotification(remaining, false);
       }
     }
   };
@@ -385,10 +245,6 @@ export default function WorkoutSession({
       if (isRunningRef.current && endTimeRef.current) {
         tickTimer();
       }
-      // If user returns to foreground and alarm is not sounding, clear the ongoing countdown notification
-      if (document.visibilityState === "visible" && !isTimesUp) {
-        clearTimerNotification();
-      }
     };
 
     document.addEventListener("visibilitychange", handleSync);
@@ -400,35 +256,15 @@ export default function WorkoutSession({
       window.removeEventListener("focus", handleSync);
       window.removeEventListener("pageshow", handleSync);
     };
-  }, [isTimesUp]);
+  }, []);
 
   const handleStartTimer = () => {
     sound.preload();
     sound.stopAlarmLoop();
-    clearTimerNotification();
-
-    // Auto-prompt notification permission on first user tap if still default
-    if (
-      typeof window !== "undefined" &&
-      "Notification" in window &&
-      Notification.permission === "default"
-    ) {
-      Notification.requestPermission()
-        .then((perm) => {
-          setNotificationPermission(perm);
-          notificationPermissionRef.current = perm;
-          if (perm === "granted") {
-            setNotificationsEnabled(true);
-            notificationsEnabledRef.current = true;
-          }
-        })
-        .catch(() => {});
-    }
 
     const duration = timeRemaining > 0 ? timeRemaining : initialDuration;
     endTimeRef.current = Date.now() + duration * 1000;
     lastBeepRef.current = null;
-    lastNotifSecondRef.current = null;
 
     setIsTimesUp(false);
     setIsRunning(true);
@@ -454,7 +290,6 @@ export default function WorkoutSession({
       setTimeRemaining(remaining);
       endTimeRef.current = null;
     }
-    clearTimerNotification();
     if (typeof document !== "undefined") {
       document.title = "Workoutwork";
     }
@@ -463,7 +298,6 @@ export default function WorkoutSession({
   const handleResetTimer = () => {
     sound.stopKeepAlive();
     sound.stopAlarmLoop();
-    clearTimerNotification();
     workerRef.current?.postMessage("STOP");
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -482,7 +316,6 @@ export default function WorkoutSession({
   const handleSetPreset = (seconds: number) => {
     sound.stopKeepAlive();
     sound.stopAlarmLoop();
-    clearTimerNotification();
     workerRef.current?.postMessage("STOP");
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -503,7 +336,6 @@ export default function WorkoutSession({
   const handleDismissTimesUp = () => {
     sound.stopKeepAlive();
     sound.stopAlarmLoop();
-    clearTimerNotification();
     setIsTimesUp(false);
     setTimeRemaining(initialDuration);
     if (typeof document !== "undefined") {
@@ -539,7 +371,6 @@ export default function WorkoutSession({
   const handleFinishWorkout = () => {
     sound.stopKeepAlive();
     sound.stopAlarmLoop();
-    clearTimerNotification();
     workerRef.current?.postMessage("STOP");
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -650,32 +481,6 @@ export default function WorkoutSession({
               <Smartphone className="w-3.5 h-3.5" />
             </button>
 
-            {/* Top Status Bar Notification Toggle */}
-            <button
-              type="button"
-              onClick={handleToggleNotifications}
-              className={`p-2 rounded-xl border text-xs transition-colors flex items-center gap-1 ${
-                notificationsEnabled && notificationPermission === "granted"
-                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
-                  : "bg-slate-900 border-slate-800 text-slate-500"
-              }`}
-              title={
-                notificationPermission === "granted"
-                  ? notificationsEnabled
-                    ? "Top status bar timer notification is ON"
-                    : "Top status bar timer notification is muted"
-                  : notificationPermission === "denied"
-                  ? "Notifications blocked in browser settings"
-                  : "Click to enable top status bar timer notification"
-              }
-            >
-              {notificationsEnabled && notificationPermission === "granted" ? (
-                <Bell className="w-3.5 h-3.5" />
-              ) : (
-                <BellOff className="w-3.5 h-3.5" />
-              )}
-            </button>
-
             {/* Sound Toggle */}
             <button
               type="button"
@@ -748,18 +553,6 @@ export default function WorkoutSession({
                 </button>
               ))}
             </div>
-
-            {/* Status Bar Notification Hint if not yet requested */}
-            {notificationPermission === "default" && !isTimesUp && (
-              <button
-                type="button"
-                onClick={handleToggleNotifications}
-                className="mb-3 text-[11px] text-emerald-400/90 hover:text-emerald-300 flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 px-3 py-1.5 rounded-full transition-colors cursor-pointer"
-              >
-                <Bell className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Show timer in phone notification bar when using Spotify</span>
-              </button>
-            )}
 
             {/* Red Alert Button when Time is Up (Tapping dismisses and stops continuous alarm) */}
             {isTimesUp ? (

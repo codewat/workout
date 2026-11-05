@@ -87,6 +87,7 @@ class SoundService {
   }
 
   // Pre-unlock audio on user gesture (when user taps "Start Timer")
+  // Plays muted HTMLAudioElement in background so OS allows instant unmuting at 0:00 without being blocked
   preload() {
     if (typeof window === "undefined") return;
     try {
@@ -95,18 +96,18 @@ class SoundService {
         ctx.resume().catch(() => {});
       }
       const url = getAlarmAudioUrl();
-      if (url && !this.audioElement) {
-        const audio = new Audio(url);
-        audio.volume = 0.001;
-        const p = audio.play();
-        if (p !== undefined) {
-          p.then(() => {
-            audio.pause();
-            audio.currentTime = 0;
-            audio.volume = 1.0;
-          }).catch(() => {});
+      if (url) {
+        if (!this.audioElement) {
+          this.audioElement = new Audio(url);
+        } else {
+          this.audioElement.src = url;
         }
-        this.audioElement = audio;
+        this.audioElement.loop = true;
+        this.audioElement.muted = true; // Muted so it does NOT interrupt Spotify during rest countdown
+        const p = this.audioElement.play();
+        if (p !== undefined) {
+          p.catch(() => {});
+        }
       }
     } catch {
       // Ignored
@@ -240,56 +241,60 @@ class SoundService {
     }
   }
 
-  // Continuous alarm sound that requests Audio Focus to PAUSE Spotify/YouTube
+  // Continuous alarm sound that requests Audio Focus to PAUSE Spotify/YouTube/Facebook
   startAlarmLoop() {
-    this.stopAlarmLoop();
+    this.stopWebAudioAlarm();
+    this.stopKeepAlive();
+
+    if (this.alarmInterval) {
+      clearInterval(this.alarmInterval);
+      this.alarmInterval = null;
+    }
 
     // 1. Start continuous Web Audio alert (guaranteed loud sound through speakers)
     this.startWebAudioAlarm();
 
-    // 2. Play via HTMLAudioElement to take OS Audio Focus and pause Spotify/YouTube
-    const wavUrl = getAlarmAudioUrl();
-    if (wavUrl && typeof window !== "undefined") {
-      try {
-        if (!this.audioElement) {
-          this.audioElement = new Audio(wavUrl);
-        } else {
-          this.audioElement.src = wavUrl;
-        }
+    // 2. Unmute pre-unlocked HTMLAudioElement to claim OS Audio Focus and pause Spotify/YouTube/Facebook
+    try {
+      const wavUrl = getAlarmAudioUrl();
+      if (!this.audioElement && wavUrl && typeof window !== "undefined") {
+        this.audioElement = new Audio(wavUrl);
         this.audioElement.loop = true;
-        this.audioElement.volume = 1.0;
+      }
 
+      if (this.audioElement) {
+        this.audioElement.muted = false; // UNMUTE! Claims transient audio focus from Android OS
+        this.audioElement.volume = 1.0;
+        this.audioElement.currentTime = 0;
         const playPromise = this.audioElement.play();
         if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Web Audio alarm is already actively sounding
-          });
+          playPromise.catch(() => {});
         }
-
-        // Request system audio focus via Media Session API to pause other apps
-        if ("mediaSession" in navigator) {
-          navigator.mediaSession.playbackState = "playing";
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: "Time's Up! 🛑",
-            artist: "Workoutwork Timer",
-            album: "Rest Timer Alarm",
-          });
-
-          // Allow user to silence/dismiss alarm directly from lock screen or headphones
-          try {
-            navigator.mediaSession.setActionHandler("pause", () => {
-              this.stopAlarmLoop();
-            });
-            navigator.mediaSession.setActionHandler("stop", () => {
-              this.stopAlarmLoop();
-            });
-          } catch {
-            // Actions might not be supported in older browsers
-          }
-        }
-      } catch {
-        // Fallback already playing
       }
+
+      // Request system audio focus via Media Session API to pause other apps
+      if (typeof window !== "undefined" && "mediaSession" in navigator) {
+        navigator.mediaSession.playbackState = "playing";
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: "Time's Up! 🛑",
+          artist: "Workoutwork Timer",
+          album: "Rest Timer Alarm",
+        });
+
+        // Allow user to silence/dismiss alarm directly from lock screen or headphones
+        try {
+          navigator.mediaSession.setActionHandler("pause", () => {
+            this.stopAlarmLoop();
+          });
+          navigator.mediaSession.setActionHandler("stop", () => {
+            this.stopAlarmLoop();
+          });
+        } catch {
+          // Actions might not be supported in older browsers
+        }
+      }
+    } catch {
+      // Ignored
     }
 
     // 3. Vibrate phone continuously
