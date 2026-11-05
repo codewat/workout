@@ -51,7 +51,7 @@ export default function WorkoutSession({
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const isRunningRef = useRef<boolean>(false);
   const [isTimesUp, setIsTimesUp] = useState<boolean>(false);
-  const [isTimerCollapsed, setIsTimerCollapsed] = useState<boolean>(false);
+  const [isTimerCollapsed, setIsTimerCollapsed] = useState<boolean>(true);
 
   // Active Set Navigation
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
@@ -597,8 +597,13 @@ export default function WorkoutSession({
             {isTimerCollapsed ? (
               /* Collapsed Slim Floating Bar */
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => setIsTimerCollapsed(false)}
+                  className="flex items-center gap-2 group text-left cursor-pointer active:scale-95 transition-transform"
+                  title="Expand timer"
+                >
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 group-hover:text-emerald-400 transition-colors">
                     Rest:
                   </span>
                   <span
@@ -607,12 +612,12 @@ export default function WorkoutSession({
                         ? "text-rose-400 animate-pulse"
                         : isRunning
                         ? "text-emerald-400"
-                        : "text-slate-100"
+                        : "text-slate-100 group-hover:text-white"
                     }`}
                   >
                     {mins}:{secs}
                   </span>
-                </div>
+                </button>
 
                 <div className="flex items-center gap-2">
                   {isTimesUp ? (
