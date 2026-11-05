@@ -312,6 +312,7 @@ export default function WorkoutSession({
       setIsRunning(false);
       isRunningRef.current = false;
       setIsTimesUp(true);
+      sound.stopKeepAlive();
       workerRef.current?.postMessage("STOP");
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -434,10 +435,13 @@ export default function WorkoutSession({
     isRunningRef.current = true;
     if (soundEnabled) sound.playBeep(650, 0.08);
 
+    // Keep Android Chrome awake in the background using hardware audio clock
+    sound.startKeepAlive(tickTimer);
     workerRef.current?.postMessage("START");
   };
 
   const handlePauseTimer = () => {
+    sound.stopKeepAlive();
     setIsRunning(false);
     isRunningRef.current = false;
     workerRef.current?.postMessage("STOP");
@@ -457,6 +461,7 @@ export default function WorkoutSession({
   };
 
   const handleResetTimer = () => {
+    sound.stopKeepAlive();
     sound.stopAlarmLoop();
     clearTimerNotification();
     workerRef.current?.postMessage("STOP");
@@ -475,6 +480,7 @@ export default function WorkoutSession({
   };
 
   const handleSetPreset = (seconds: number) => {
+    sound.stopKeepAlive();
     sound.stopAlarmLoop();
     clearTimerNotification();
     workerRef.current?.postMessage("STOP");
@@ -495,6 +501,7 @@ export default function WorkoutSession({
 
   // Tapping the big red button stops the continuous alarm and resets the timer
   const handleDismissTimesUp = () => {
+    sound.stopKeepAlive();
     sound.stopAlarmLoop();
     clearTimerNotification();
     setIsTimesUp(false);
@@ -530,6 +537,7 @@ export default function WorkoutSession({
   };
 
   const handleFinishWorkout = () => {
+    sound.stopKeepAlive();
     sound.stopAlarmLoop();
     clearTimerNotification();
     workerRef.current?.postMessage("STOP");

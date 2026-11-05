@@ -65,6 +65,11 @@ class SoundService {
   private audioElement: HTMLAudioElement | null = null;
   public onStopCallback: (() => void) | null = null;
 
+  // Background audio keep-alive (keeps Android/Chrome from sleeping while Spotify plays)
+  private keepAliveNode: ScriptProcessorNode | null = null;
+  private keepAliveSource: AudioBufferSourceNode | null = null;
+  private alarmOscInterval: NodeJS.Timeout | null = null;
+
   private getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
     if (!this.ctx) {
@@ -76,21 +81,140 @@ class SoundService {
       }
     }
     if (this.ctx && this.ctx.state === "suspended") {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
   }
 
-  // Pre-unlock audio on user gesture (e.g. when pressing start timer)
+  // Pre-unlock audio on user gesture (when user taps "Start Timer")
   preload() {
     if (typeof window === "undefined") return;
     try {
-      this.getContext();
-      // Pre-generate alert sound so it's ready instantaneously
-      getAlarmAudioUrl();
+      const ctx = this.getContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      const url = getAlarmAudioUrl();
+      if (url && !this.audioElement) {
+        const audio = new Audio(url);
+        audio.volume = 0.001;
+        const p = audio.play();
+        if (p !== undefined) {
+          p.then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+            audio.volume = 1.0;
+          }).catch(() => {});
+        }
+        this.audioElement = audio;
+      }
     } catch {
       // Ignored
     }
+  }
+
+  // Hardware Audio Clock Keep-Alive:
+  // Runs silent audio buffers through the system audio server so Android does NOT freeze
+  // the tab when user switches to Spotify. Calls onTick() every ~92ms from the hardware audio clock!
+  startKeepAlive(onTick?: () => void) {
+    if (typeof window === "undefined") return;
+    try {
+      this.stopKeepAlive();
+      const ctx = this.getContext();
+      if (!ctx) return;
+
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+
+      // 4096 samples at 44.1kHz = ~92.8ms callback interval
+      const buffer = ctx.createBuffer(1, 4096, ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const scriptNode = ctx.createScriptProcessor(4096, 1, 1);
+      scriptNode.onaudioprocess = (e) => {
+        // Pure silence (zeros) so no audio is audible
+        const output = e.outputBuffer.getChannelData(0);
+        for (let i = 0; i < output.length; i++) {
+          output[i] = 0;
+        }
+        if (onTick) {
+          onTick();
+        }
+      };
+
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+
+      source.connect(scriptNode);
+      scriptNode.connect(gain);
+      gain.connect(ctx.destination);
+
+      source.start();
+      this.keepAliveSource = source;
+      this.keepAliveNode = scriptNode;
+    } catch {
+      // Ignored
+    }
+  }
+
+  stopKeepAlive() {
+    if (this.keepAliveSource) {
+      try {
+        this.keepAliveSource.stop();
+        this.keepAliveSource.disconnect();
+      } catch {}
+      this.keepAliveSource = null;
+    }
+    if (this.keepAliveNode) {
+      try {
+        this.keepAliveNode.disconnect();
+        this.keepAliveNode.onaudioprocess = null;
+      } catch {}
+      this.keepAliveNode = null;
+    }
+  }
+
+  // Continuous urgent Web Audio alarm (plays even if HTMLAudioElement is restricted)
+  private startWebAudioAlarm() {
+    this.stopWebAudioAlarm();
+    this.playUrgentBeep();
+    this.alarmOscInterval = setInterval(() => {
+      this.playUrgentBeep();
+    }, 750);
+  }
+
+  private stopWebAudioAlarm() {
+    if (this.alarmOscInterval) {
+      clearInterval(this.alarmOscInterval);
+      this.alarmOscInterval = null;
+    }
+  }
+
+  private playUrgentBeep() {
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      for (let i = 0; i < 3; i++) {
+        const start = now + i * 0.16;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(880, start);
+
+        gain.gain.setValueAtTime(0.6, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.11);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.12);
+      }
+    } catch {}
   }
 
   playBeep(freq = 600, duration = 0.1, type: OscillatorType = "sine") {
@@ -120,19 +244,25 @@ class SoundService {
   startAlarmLoop() {
     this.stopAlarmLoop();
 
-    // 1. Play via HTMLAudioElement to pause background music like Spotify/YouTube
+    // 1. Start continuous Web Audio alert (guaranteed loud sound through speakers)
+    this.startWebAudioAlarm();
+
+    // 2. Play via HTMLAudioElement to take OS Audio Focus and pause Spotify/YouTube
     const wavUrl = getAlarmAudioUrl();
     if (wavUrl && typeof window !== "undefined") {
       try {
-        const audio = new Audio(wavUrl);
-        audio.loop = true;
-        this.audioElement = audio;
+        if (!this.audioElement) {
+          this.audioElement = new Audio(wavUrl);
+        } else {
+          this.audioElement.src = wavUrl;
+        }
+        this.audioElement.loop = true;
+        this.audioElement.volume = 1.0;
 
-        const playPromise = audio.play();
+        const playPromise = this.audioElement.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
-            // In case of restriction, fallback to Web Audio
-            this.playBeep(880, 0.2, "square");
+            // Web Audio alarm is already actively sounding
           });
         }
 
@@ -158,13 +288,11 @@ class SoundService {
           }
         }
       } catch {
-        this.playBeep(880, 0.2, "square");
+        // Fallback already playing
       }
-    } else {
-      this.playBeep(880, 0.2, "square");
     }
 
-    // 2. Vibrate phone continuously
+    // 3. Vibrate phone continuously
     this.vibrate([300, 150, 300, 150, 400]);
     this.alarmInterval = setInterval(() => {
       this.vibrate([300, 150, 300, 150, 400]);
@@ -173,6 +301,9 @@ class SoundService {
 
   // Stop alarm, release OS audio focus so Spotify automatically resumes
   stopAlarmLoop() {
+    this.stopWebAudioAlarm();
+    this.stopKeepAlive();
+
     if (this.alarmInterval) {
       clearInterval(this.alarmInterval);
       this.alarmInterval = null;
