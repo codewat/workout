@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { WorkoutSetGroup, getExerciseBoxes } from "../types";
-import { sound } from "../lib/audio";
+import { sound, AlarmSoundType, ALARM_SOUND_OPTIONS } from "../lib/audio";
 import { wakeLockManager } from "../lib/wakeLock";
 import confetti from "canvas-confetti";
 import {
@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import SetEditorModal from "./SetEditorModal";
 import SyncModal from "./SyncModal";
+import SoundSettingsModal from "./SoundSettingsModal";
 
 interface WorkoutSessionProps {
   workoutList: WorkoutSetGroup[];
@@ -68,6 +69,69 @@ export default function WorkoutSession({
 
   // Cross-device Sync Modal State
   const [showSyncModal, setShowSyncModal] = useState<boolean>(false);
+
+  // Sound Tone & Volume Settings Modal State
+  const [showSoundModal, setShowSoundModal] = useState<boolean>(false);
+  const [soundType, setSoundType] = useState<AlarmSoundType>("buzzer");
+  const [volume, setVolume] = useState<number>(1.0);
+
+  // Load saved sound preferences from local storage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedType = localStorage.getItem("workout_sound_type") as AlarmSoundType | null;
+      const savedVol = localStorage.getItem("workout_sound_volume");
+      const savedEnabled = localStorage.getItem("workout_sound_enabled");
+
+      if (savedType) {
+        setSoundType(savedType);
+        sound.setSoundType(savedType);
+      } else {
+        sound.setSoundType("buzzer");
+      }
+
+      if (savedVol !== null) {
+        const parsedVol = parseFloat(savedVol);
+        if (!isNaN(parsedVol)) {
+          setVolume(parsedVol);
+          sound.setVolume(parsedVol);
+        }
+      } else {
+        sound.setVolume(1.0);
+      }
+
+      if (savedEnabled !== null) {
+        setSoundEnabled(savedEnabled === "true");
+      }
+    }
+  }, []);
+
+  const handleSelectSoundType = (type: AlarmSoundType) => {
+    setSoundType(type);
+    sound.setSoundType(type);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("workout_sound_type", type);
+    }
+  };
+
+  const handleChangeVolume = (vol: number) => {
+    setVolume(vol);
+    sound.setVolume(vol);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("workout_sound_volume", String(vol));
+    }
+  };
+
+  const handleToggleSoundEnabled = () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("workout_sound_enabled", String(next));
+    }
+  };
+
+  const handlePreviewSound = (type: AlarmSoundType) => {
+    sound.previewSound(type, volume);
+  };
 
   // Set Editor Pop-up Modal State
   const [modalState, setModalState] = useState<{
@@ -441,6 +505,8 @@ export default function WorkoutSession({
   const mins = Math.floor(timeRemaining / 60);
   const secs = (timeRemaining % 60).toString().padStart(2, "0");
   const timerPercentage = initialDuration > 0 ? (timeRemaining / initialDuration) * 100 : 0;
+  const currentSoundOption =
+    ALARM_SOUND_OPTIONS.find((s) => s.id === soundType) || ALARM_SOUND_OPTIONS[0];
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
@@ -485,18 +551,21 @@ export default function WorkoutSession({
               <Smartphone className="w-3.5 h-3.5" />
             </button>
 
-            {/* Sound Toggle */}
+            {/* Sound & Volume Settings Button */}
             <button
               type="button"
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`p-2 rounded-xl border text-xs transition-colors ${
+              onClick={() => setShowSoundModal(true)}
+              className={`p-2 sm:px-2.5 sm:py-2 rounded-xl border text-xs transition-colors flex items-center gap-1.5 ${
                 soundEnabled
-                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
-                  : "bg-slate-900 border-slate-800 text-slate-500"
+                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20"
+                  : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400"
               }`}
-              title={soundEnabled ? "Sound enabled" : "Sound muted"}
+              title="Timer Sound & Volume Settings"
             >
               {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+              <span className="text-[11px] font-extrabold tabular-nums hidden sm:inline">
+                {soundEnabled ? `${Math.round(volume * 100)}%` : "Off"}
+              </span>
             </button>
           </div>
         </div>
@@ -602,7 +671,18 @@ export default function WorkoutSession({
               <div className="flex flex-col items-center justify-center text-center relative">
                 {/* Header Row: Centered Label + Collapse Toggle */}
                 <div className="w-full flex items-center justify-between mb-1">
-                  <span className="w-6" />
+                  <button
+                    type="button"
+                    onClick={() => setShowSoundModal(true)}
+                    className="px-2.5 py-1 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-xs font-semibold text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 active:scale-95"
+                    title="Change sound tone and volume"
+                  >
+                    <span>{currentSoundOption.icon}</span>
+                    <span className="text-[11px] font-medium hidden sm:inline">{currentSoundOption.name}</span>
+                    <span className="text-[10px] text-emerald-400 font-bold tabular-nums">
+                      {soundEnabled ? `${Math.round(volume * 100)}%` : "Off"}
+                    </span>
+                  </button>
                   <span className="text-xs uppercase tracking-widest font-semibold text-slate-400">
                     Rest Timer
                   </span>
@@ -907,6 +987,19 @@ export default function WorkoutSession({
           onUpdateWorkoutList(newRoutine);
           setSelectedSetIndex(0);
         }}
+      />
+
+      {/* Sound Settings & Volume Modal */}
+      <SoundSettingsModal
+        isOpen={showSoundModal}
+        onClose={() => setShowSoundModal(false)}
+        soundEnabled={soundEnabled}
+        onToggleSoundEnabled={handleToggleSoundEnabled}
+        soundType={soundType}
+        onSelectSoundType={handleSelectSoundType}
+        volume={volume}
+        onChangeVolume={handleChangeVolume}
+        onPreviewSound={handlePreviewSound}
       />
 
       {/* Celebration Modal when workout is completed */}
