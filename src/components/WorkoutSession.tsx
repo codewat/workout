@@ -259,8 +259,8 @@ export default function WorkoutSession({
   }, []);
 
   const handleStartTimer = () => {
-    sound.preload();
     sound.stopAlarmLoop();
+    sound.preload();
 
     const duration = timeRemaining > 0 ? timeRemaining : initialDuration;
     endTimeRef.current = Date.now() + duration * 1000;

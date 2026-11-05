@@ -8,10 +8,11 @@ function getAlarmAudioUrl(): string | null {
   if (cachedAlarmUrl) return cachedAlarmUrl;
 
   try {
-    const sampleRate = 22050;
+    const sampleRate = 44100;
     const duration = 1.0;
     const numSamples = Math.floor(sampleRate * duration);
-    const buffer = new ArrayBuffer(44 + numSamples);
+    const dataSize = numSamples * 2; // 16-bit PCM (2 bytes per sample)
+    const buffer = new ArrayBuffer(44 + dataSize);
     const view = new DataView(buffer);
 
     const writeString = (offset: number, str: string) => {
@@ -20,25 +21,25 @@ function getAlarmAudioUrl(): string | null {
       }
     };
 
-    // RIFF WAV Header
+    // Standard 16-bit PCM RIFF WAV Header (100% Android MediaPlayer compatible)
     writeString(0, "RIFF");
-    view.setUint32(4, 36 + numSamples, true);
+    view.setUint32(4, 36 + dataSize, true);
     writeString(8, "WAVE");
     writeString(12, "fmt ");
     view.setUint32(16, 16, true);
     view.setUint16(20, 1, true); // PCM format
     view.setUint16(22, 1, true); // 1 channel (mono)
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate, true); // byte rate (sampleRate * 1 * 1)
-    view.setUint16(32, 1, true); // block align
-    view.setUint16(34, 8, true); // 8 bits per sample
+    view.setUint32(28, sampleRate * 2, true); // byte rate (sampleRate * 1 * 2)
+    view.setUint16(32, 2, true); // block align (1 * 2)
+    view.setUint16(34, 16, true); // 16 bits per sample
     writeString(36, "data");
-    view.setUint32(40, numSamples, true);
+    view.setUint32(40, dataSize, true);
 
     // Generate 3 urgent square wave alert beeps (880Hz A5)
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
-      let sample = 128; // silence
+      let sample = 0; // silence (16-bit signed: 0)
       const inBeep =
         (t >= 0 && t < 0.15) ||
         (t >= 0.22 && t < 0.37) ||
@@ -46,9 +47,9 @@ function getAlarmAudioUrl(): string | null {
 
       if (inBeep) {
         const wave = Math.sin(2 * Math.PI * 880 * t) > 0 ? 1 : -1;
-        sample = 128 + Math.round(wave * 95);
+        sample = Math.round(wave * 28000); // 16-bit amplitude (-28000 to +28000)
       }
-      view.setUint8(44 + i, sample);
+      view.setInt16(44 + i * 2, sample, true);
     }
 
     const blob = new Blob([buffer], { type: "audio/wav" });
