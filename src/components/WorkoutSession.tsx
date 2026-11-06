@@ -159,9 +159,12 @@ export default function WorkoutSession({
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
-  // Request wake lock on component mount so screen doesn't sleep
+  // Request wake lock and register service worker on component mount
   useEffect(() => {
     wakeLockManager.requestWakeLock((active) => setScreenAwake(active));
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
     return () => {
       wakeLockManager.releaseWakeLock();
       sound.stopAlarmLoop();
@@ -265,6 +268,27 @@ export default function WorkoutSession({
       if (soundEnabledRef.current) {
         sound.startAlarmLoop();
       }
+
+      // Show high-priority heads-up banner via Service Worker so user is alerted even in Facebook or Instagram
+      if (
+        typeof window !== "undefined" &&
+        "serviceWorker" in navigator &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        navigator.serviceWorker.ready
+          .then((reg) => {
+            reg.showNotification("Time's Up! 🛑", {
+              body: "Rest period finished! Time for the next set.",
+              tag: "workout-timer-alarm",
+              icon: "/icon.svg",
+              badge: "/icon.svg",
+              requireInteraction: true,
+              vibrate: [400, 200, 400, 200, 600],
+            } as NotificationOptions);
+          })
+          .catch(() => {});
+      }
       return;
     }
 
@@ -312,6 +336,8 @@ export default function WorkoutSession({
     const handleSync = () => {
       if (isRunningRef.current && endTimeRef.current) {
         tickTimer();
+      } else if (isTimesUp && soundEnabledRef.current) {
+        sound.startAlarmLoop();
       }
     };
 
@@ -324,11 +350,18 @@ export default function WorkoutSession({
       window.removeEventListener("focus", handleSync);
       window.removeEventListener("pageshow", handleSync);
     };
-  }, []);
+  }, [isTimesUp]);
 
   const handleStartTimer = () => {
     sound.stopAlarmLoop();
     sound.preload();
+
+    // Ask notification permission on first user tap if not already set
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
+    }
 
     const duration = timeRemaining > 0 ? timeRemaining : initialDuration;
     endTimeRef.current = Date.now() + duration * 1000;
@@ -404,6 +437,15 @@ export default function WorkoutSession({
   const handleDismissTimesUp = () => {
     sound.stopKeepAlive();
     sound.stopAlarmLoop();
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          reg.getNotifications({ tag: "workout-timer-alarm" }).then((notifs) => {
+            notifs.forEach((n) => n.close());
+          });
+        })
+        .catch(() => {});
+    }
     setIsTimesUp(false);
     setTimeRemaining(initialDuration);
     if (typeof document !== "undefined") {

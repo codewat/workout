@@ -141,6 +141,7 @@ class SoundService {
   private keepAliveNode: ScriptProcessorNode | null = null;
   private keepAliveSource: AudioBufferSourceNode | null = null;
   private alarmOscInterval: NodeJS.Timeout | null = null;
+  private retryInterval: NodeJS.Timeout | null = null;
 
   setSoundType(type: AlarmSoundType) {
     this.soundType = type;
@@ -197,10 +198,11 @@ class SoundService {
       if (url) {
         if (!this.audioElement) {
           this.audioElement = new Audio(url);
-        } else {
+          this.audioElement.loop = true;
+        } else if (this.audioElement.src !== url) {
           this.audioElement.src = url;
+          this.audioElement.loop = true;
         }
-        this.audioElement.loop = true;
         this.audioElement.muted = true; // Muted so it does NOT interrupt Spotify during rest countdown
         this.audioElement.volume = this.volume;
         const p = this.audioElement.play();
@@ -473,19 +475,32 @@ class SoundService {
       if (!this.audioElement && wavUrl && typeof window !== "undefined") {
         this.audioElement = new Audio(wavUrl);
         this.audioElement.loop = true;
-      } else if (this.audioElement && wavUrl) {
+      } else if (this.audioElement && wavUrl && this.audioElement.src !== wavUrl) {
         this.audioElement.src = wavUrl;
       }
 
       if (this.audioElement) {
         this.audioElement.muted = false; // UNMUTE! Claims transient audio focus from Android OS
-        this.audioElement.volume = Math.max(0, Math.min(1, this.volume));
+        this.audioElement.volume = Math.max(0.1, Math.min(1, this.volume));
         this.audioElement.currentTime = 0;
         const playPromise = this.audioElement.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {});
         }
       }
+
+      // Retry playback and vibration every 600ms in case Facebook/Instagram momentarily held audio focus
+      if (this.retryInterval) clearInterval(this.retryInterval);
+      this.retryInterval = setInterval(() => {
+        if (this.audioElement) {
+          this.audioElement.muted = false;
+          this.audioElement.volume = Math.max(0.1, Math.min(1, this.volume));
+          if (this.audioElement.paused) {
+            this.audioElement.play().catch(() => {});
+          }
+        }
+        this.vibrate([300, 150, 300, 150, 400]);
+      }, 600);
 
       // Request system audio focus via Media Session API to pause other apps
       if (typeof window !== "undefined" && "mediaSession" in navigator) {
@@ -523,6 +538,11 @@ class SoundService {
   stopAlarmLoop() {
     this.stopWebAudioAlarm();
     this.stopKeepAlive();
+
+    if (this.retryInterval) {
+      clearInterval(this.retryInterval);
+      this.retryInterval = null;
+    }
 
     if (this.alarmInterval) {
       clearInterval(this.alarmInterval);
