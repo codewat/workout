@@ -89,7 +89,7 @@ export default function WorkoutSession({
 
   const scrollTabs = (direction: "left" | "right") => {
     if (tabsRef.current) {
-      const amount = direction === "left" ? -180 : 180;
+      const amount = direction === "left" ? -220 : 220;
       tabsRef.current.scrollBy({ left: amount, behavior: "smooth" });
     }
   };
@@ -905,25 +905,30 @@ export default function WorkoutSession({
             </button>
           </div>
 
-          <div className="relative flex items-center w-full min-w-0">
-            {/* Scroll Left Button */}
-            {canScrollLeft && (
+          <div className="flex items-center gap-1.5 w-full min-w-0">
+            {/* Scroll Left Button - Yellow/Amber matching Superset */}
+            {(canScrollLeft || canScrollRight) && (
               <button
                 type="button"
                 onClick={() => scrollTabs("left")}
-                className="absolute left-0 z-10 p-1.5 rounded-xl bg-slate-900/95 border border-slate-700 text-slate-200 hover:text-white shadow-xl backdrop-blur-md -ml-2 active:scale-90 transition-all hover:bg-slate-800"
+                disabled={!canScrollLeft}
+                className="flex-shrink-0 p-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 hover:border-amber-400 text-amber-400 hover:text-amber-300 disabled:opacity-20 disabled:pointer-events-none active:scale-90 transition-all shadow-md shadow-amber-950/40"
                 title="Scroll sets left"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
               </button>
             )}
 
-            {/* Scrollable Tabs */}
+            {/* Scrollable Tabs - Without any scrollbar line/bar at the bottom */}
             <div
               ref={tabsRef}
               onWheel={handleTabsWheel}
-              className="flex items-center gap-2 overflow-x-auto w-full min-w-0 py-1.5 px-0.5 scrollbar-thin overscroll-x-contain touch-pan-x"
-              style={{ WebkitOverflowScrolling: "touch" }}
+              className="flex-1 flex items-center gap-2 overflow-x-auto min-w-0 py-1 px-0.5 no-scrollbar overscroll-x-contain touch-pan-x"
+              style={{
+                WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
             >
               {workoutList.map((group, index) => {
                 const isSelected = selectedSetIndex === index;
@@ -965,15 +970,16 @@ export default function WorkoutSession({
               </button>
             </div>
 
-            {/* Scroll Right Button */}
-            {canScrollRight && (
+            {/* Scroll Right Button - Yellow/Amber matching Superset */}
+            {(canScrollLeft || canScrollRight) && (
               <button
                 type="button"
                 onClick={() => scrollTabs("right")}
-                className="absolute right-0 z-10 p-1.5 rounded-xl bg-slate-900/95 border border-slate-700 text-slate-200 hover:text-white shadow-xl backdrop-blur-md -mr-2 active:scale-90 transition-all hover:bg-slate-800"
+                disabled={!canScrollRight}
+                className="flex-shrink-0 p-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 hover:border-amber-400 text-amber-400 hover:text-amber-300 disabled:opacity-20 disabled:pointer-events-none active:scale-90 transition-all shadow-md shadow-amber-950/40"
                 title="Scroll sets right"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4 stroke-[2.5]" />
               </button>
             )}
           </div>
