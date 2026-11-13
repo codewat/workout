@@ -23,9 +23,11 @@ export default function SetEditorModal({
   onDeleteSet,
 }: SetEditorModalProps) {
   // Local state for the set being edited or created
+  const [setName, setSetName] = useState<string>("");
   const [currentGroup, setCurrentGroup] = useState<WorkoutSetGroup>({
-    id: "set-" + Date.now(),
-    exercises: [{ id: "ex-" + Date.now(), name: "", isSuperset: false }],
+    id: "set-temp",
+    name: "Set " + (setIndex + 1),
+    exercises: [{ id: "ex-temp", name: "", isSuperset: false }],
   });
 
   // Delete confirmation pop-up state
@@ -35,21 +37,27 @@ export default function SetEditorModal({
   useEffect(() => {
     if (isOpen) {
       setShowDeleteConfirm(false);
+      const defaultName = `Set ${setIndex + 1}`;
       if (initialGroup) {
         // Deep clone initialGroup
+        const nameToUse = initialGroup.name?.trim() || defaultName;
+        setSetName(nameToUse);
         setCurrentGroup({
           id: initialGroup.id,
+          name: nameToUse,
           exercises: initialGroup.exercises.map((ex) => ({ ...ex })),
         });
       } else {
         // Brand new set with 1 empty exercise
+        setSetName(defaultName);
         setCurrentGroup({
           id: "set-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
+          name: defaultName,
           exercises: [{ id: "ex-" + Date.now(), name: "", isSuperset: false }],
         });
       }
     }
-  }, [isOpen, initialGroup]);
+  }, [isOpen, initialGroup, setIndex]);
 
   if (!isOpen) return null;
 
@@ -116,7 +124,11 @@ export default function SetEditorModal({
   };
 
   const handleSave = () => {
-    onSaveSet(currentGroup);
+    const finalName = setName.trim() || `Set ${setIndex + 1}`;
+    onSaveSet({
+      ...currentGroup,
+      name: finalName,
+    });
     onClose();
   };
 
@@ -129,10 +141,14 @@ export default function SetEditorModal({
         <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
           <div>
             <h3 className="font-bold text-base text-white">
-              {isEditing ? `Edit Set #${setIndex + 1}` : `Create Set #${setIndex + 1}`}
+              {isEditing
+                ? `Edit ${initialGroup?.name || `Set #${setIndex + 1}`}`
+                : `Create Set #${setIndex + 1}`}
             </h3>
             <p className="text-xs text-slate-400">
-              {isEditing ? "Modify or delete workouts in this set" : "Add workouts for this set"}
+              {isEditing
+                ? "Modify set name, exercises, or delete this set"
+                : "Name this set and add exercises"}
             </p>
           </div>
           <button
@@ -144,8 +160,28 @@ export default function SetEditorModal({
           </button>
         </div>
 
-        {/* Modal Body: Exercise Boxes List */}
+        {/* Modal Body: Set Name & Exercise Boxes List */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Set Name Input */}
+          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="set-name-input" className="text-xs font-semibold text-slate-300">
+                Set Name
+              </label>
+              <span className="text-[11px] text-slate-500 font-normal">
+                e.g. Set {setIndex + 1}, Warm-up, Drop Set
+              </span>
+            </div>
+            <input
+              id="set-name-input"
+              type="text"
+              value={setName}
+              onChange={(e) => setSetName(e.target.value)}
+              placeholder={`Set ${setIndex + 1}`}
+              className="w-full bg-slate-900 border border-slate-700/80 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 outline-none transition-all font-medium"
+            />
+          </div>
+
           <div className="space-y-3">
             {boxes.map((box) => (
               <div
@@ -261,13 +297,15 @@ export default function SetEditorModal({
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-base text-white">Delete Set #{setIndex + 1}</h4>
+                  <h4 className="font-bold text-base text-white">
+                    Delete {setName.trim() || `Set #${setIndex + 1}`}
+                  </h4>
                   <p className="text-xs text-slate-400">Are you sure you want to delete this?</p>
                 </div>
               </div>
 
               <p className="text-xs text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-                This will delete Set #{setIndex + 1} and all workouts inside it. This action cannot be undone.
+                This will delete &ldquo;{setName.trim() || `Set #${setIndex + 1}`}&rdquo; and all workouts inside it. This action cannot be undone.
               </p>
 
               <div className="flex items-center gap-2.5 pt-2">

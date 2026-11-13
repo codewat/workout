@@ -5,12 +5,14 @@ const STORAGE_KEY = "workoutwork_saved_routine";
 export const DEFAULT_ROUTINE: WorkoutSetGroup[] = [
   {
     id: "set-1",
+    name: "Set 1",
     exercises: [
       { id: "ex-1-1", name: "Barbell Bench Press" },
     ],
   },
   {
     id: "set-2",
+    name: "Set 2",
     exercises: [
       { id: "ex-2-1", name: "Incline Dumbbell Press" },
       { id: "ex-2-2", name: "Dumbbell Flyes", isSuperset: true },
@@ -18,6 +20,7 @@ export const DEFAULT_ROUTINE: WorkoutSetGroup[] = [
   },
   {
     id: "set-3",
+    name: "Set 3",
     exercises: [
       { id: "ex-3-1", name: "Overhead Tricep Extension" },
       { id: "ex-3-2", name: "Dips", isSuperset: true },
@@ -25,6 +28,7 @@ export const DEFAULT_ROUTINE: WorkoutSetGroup[] = [
   },
   {
     id: "set-4",
+    name: "Set 4",
     exercises: [
       { id: "ex-4-1", name: "Hanging Leg Raises" },
     ],

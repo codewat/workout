@@ -6,6 +6,7 @@ export interface ExerciseItem {
 
 export interface WorkoutSetGroup {
   id: string;
+  name?: string;
   exercises: ExerciseItem[];
 }
 

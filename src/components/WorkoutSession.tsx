@@ -10,8 +10,6 @@ import {
   Pause,
   RotateCcw,
   Check,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   ChevronDown,
   Flame,
@@ -19,7 +17,6 @@ import {
   VolumeX,
   Smartphone,
   Trophy,
-  PartyPopper,
   Plus,
   Pencil,
   Dumbbell,
@@ -456,11 +453,18 @@ export default function WorkoutSession({
   const toggleExerciseCompletion = (exerciseId: string) => {
     setCompletedExerciseIds((prev) => {
       const next = new Set(prev);
-      if (next.has(exerciseId)) {
-        next.delete(exerciseId);
-      } else {
+      const isChecking = !next.has(exerciseId);
+      if (isChecking) {
         next.add(exerciseId);
-        if (soundEnabled) sound.playBeep(880, 0.06);
+        if (totalExercises > 0 && next.size === totalExercises) {
+          setTimeout(() => {
+            handleFinishWorkout();
+          }, 350);
+        } else if (soundEnabled) {
+          sound.playBeep(880, 0.06);
+        }
+      } else {
+        next.delete(exerciseId);
       }
       return next;
     });
@@ -827,6 +831,7 @@ export default function WorkoutSession({
             const allSetCompleted =
               setExercises.length > 0 &&
               setExercises.every((ex) => completedExerciseIds.has(ex.id));
+            const displayName = group.name?.trim() || `Set ${index + 1}`;
 
             return (
               <button
@@ -841,7 +846,7 @@ export default function WorkoutSession({
                     : "bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800"
                 }`}
               >
-                <span>Set {index + 1}</span>
+                <span>{displayName}</span>
                 {allSetCompleted && <Check className="w-3.5 h-3.5 text-emerald-400" />}
               </button>
             );
@@ -886,9 +891,16 @@ export default function WorkoutSession({
             {/* Set Header with Edit Set Button */}
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight text-white">
-                  Set #{selectedSetIndex + 1}
-                </h2>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditModal(selectedSetIndex)}
+                  className="group flex items-center gap-2 text-left hover:opacity-90 transition-opacity"
+                  title="Click to edit set name and workouts"
+                >
+                  <h2 className="text-xl font-bold tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                    {currentGroup.name?.trim() || `Set #${selectedSetIndex + 1}`}
+                  </h2>
+                </button>
                 <span className="text-xs text-slate-400">
                   ({currentGroup.exercises.length}{" "}
                   {currentGroup.exercises.length === 1 ? "exercise" : "exercises"})
@@ -900,7 +912,7 @@ export default function WorkoutSession({
                 type="button"
                 onClick={() => handleOpenEditModal(selectedSetIndex)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 hover:text-white transition-all shadow-sm active:scale-95"
-                title="Edit or delete workouts in this set"
+                title="Edit name, workouts, or delete this set"
               >
                 <Pencil className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Edit Set</span>
@@ -978,36 +990,6 @@ export default function WorkoutSession({
                   })}
                 </div>
               ))}
-            </div>
-
-            {/* Set Navigation Buttons (Previous & Next Set) */}
-            <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-800/80">
-              <button
-                type="button"
-                onClick={() => setSelectedSetIndex((prev) => Math.max(0, prev - 1))}
-                disabled={selectedSetIndex === 0}
-                className="py-2.5 px-4 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white bg-slate-950 disabled:opacity-30 disabled:pointer-events-none flex items-center gap-1.5 transition-all"
-              >
-                <ChevronLeft className="w-4 h-4" /> Previous
-              </button>
-
-              {selectedSetIndex < workoutList.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setSelectedSetIndex((prev) => Math.min(workoutList.length - 1, prev + 1))}
-                  className="py-2.5 px-5 rounded-xl bg-slate-100 hover:bg-white text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
-                >
-                  Next Set <ChevronRight className="w-4 h-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleFinishWorkout}
-                  className="py-2.5 px-5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all"
-                >
-                  Finish Workout <PartyPopper className="w-4 h-4" />
-                </button>
-              )}
             </div>
           </section>
         ) : null}
