@@ -10,6 +10,8 @@ import {
   Pause,
   RotateCcw,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   ChevronDown,
   Flame,
@@ -71,6 +73,62 @@ export default function WorkoutSession({
   const [showSoundModal, setShowSoundModal] = useState<boolean>(false);
   const [soundType, setSoundType] = useState<AlarmSoundType>("buzzer");
   const [volume, setVolume] = useState<number>(1.0);
+
+  // Horizontal tabs scroll ref and state
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
+  const [canScrollRight, setCanScrollRight] = useState<boolean>(false);
+
+  const checkTabsScroll = () => {
+    if (tabsRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current;
+      setCanScrollLeft(scrollLeft > 2);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 2);
+    }
+  };
+
+  const scrollTabs = (direction: "left" | "right") => {
+    if (tabsRef.current) {
+      const amount = direction === "left" ? -180 : 180;
+      tabsRef.current.scrollBy({ left: amount, behavior: "smooth" });
+    }
+  };
+
+  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0 && e.deltaX === 0) {
+      e.currentTarget.scrollLeft += e.deltaY;
+    }
+  };
+
+  useEffect(() => {
+    const el = tabsRef.current;
+    if (!el) return;
+
+    const timer = setTimeout(() => {
+      checkTabsScroll();
+    }, 50);
+
+    el.addEventListener("scroll", checkTabsScroll, { passive: true });
+    window.addEventListener("resize", checkTabsScroll);
+
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener("scroll", checkTabsScroll);
+      window.removeEventListener("resize", checkTabsScroll);
+    };
+  }, [workoutList.length]);
+
+  // Auto-scroll selected tab into view
+  useEffect(() => {
+    if (tabsRef.current) {
+      const activeBtn = tabsRef.current.querySelector<HTMLElement>(
+        `[data-set-index="${selectedSetIndex}"]`
+      );
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+    }
+  }, [selectedSetIndex]);
 
   // Load saved sound preferences from local storage
   useEffect(() => {
@@ -618,7 +676,7 @@ export default function WorkoutSession({
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-xl w-full mx-auto px-4 py-4 space-y-4 pb-20">
+      <main className="flex-1 max-w-xl w-full mx-auto px-4 py-4 space-y-4 pb-20 min-w-0">
         {/* === 1. HOVER / STICKY REST TIMER CARD === */}
         <div className="sticky top-[56px] z-10 -mx-4 px-4 pt-1 pb-2 bg-slate-950/90 backdrop-blur-md">
           <section
@@ -824,44 +882,101 @@ export default function WorkoutSession({
         </div>
 
         {/* === 2. SET SELECTOR TABS & ADD NEW SET BUTTON === */}
-        <section className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
-          {workoutList.map((group, index) => {
-            const isSelected = selectedSetIndex === index;
-            const setExercises = group.exercises;
-            const allSetCompleted =
-              setExercises.length > 0 &&
-              setExercises.every((ex) => completedExerciseIds.has(ex.id));
-            const displayName = group.name?.trim() || `Set ${index + 1}`;
+        <section className="space-y-2 w-full min-w-0">
+          <div className="flex items-center justify-between px-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Workout Sets
+              </span>
+              <span className="text-[11px] font-semibold text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-full">
+                {workoutList.length} {workoutList.length === 1 ? "set" : "sets"}
+              </span>
+            </div>
 
-            return (
+            {/* Always visible Add New Set button */}
+            <button
+              type="button"
+              onClick={handleOpenCreateModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 transition-all active:scale-95 shadow-sm shadow-emerald-950/20"
+              title="Create a new set"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add New Set</span>
+            </button>
+          </div>
+
+          <div className="relative flex items-center w-full min-w-0">
+            {/* Scroll Left Button */}
+            {canScrollLeft && (
               <button
-                key={group.id}
                 type="button"
-                onClick={() => setSelectedSetIndex(index)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                  isSelected
-                    ? "bg-slate-100 text-slate-950 border-white shadow-md shadow-slate-100/10 scale-105"
-                    : allSetCompleted
-                    ? "bg-emerald-950/40 text-emerald-400 border-emerald-500/30"
-                    : "bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800"
-                }`}
+                onClick={() => scrollTabs("left")}
+                className="absolute left-0 z-10 p-1.5 rounded-xl bg-slate-900/95 border border-slate-700 text-slate-200 hover:text-white shadow-xl backdrop-blur-md -ml-2 active:scale-90 transition-all hover:bg-slate-800"
+                title="Scroll sets left"
               >
-                <span>{displayName}</span>
-                {allSetCompleted && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            );
-          })}
+            )}
 
-          {/* Add New Set Button right beside the set buttons! */}
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-all active:scale-95 shadow-sm"
-            title="Create a new set"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add New Set</span>
-          </button>
+            {/* Scrollable Tabs */}
+            <div
+              ref={tabsRef}
+              onWheel={handleTabsWheel}
+              className="flex items-center gap-2 overflow-x-auto w-full min-w-0 py-1.5 px-0.5 scrollbar-thin overscroll-x-contain touch-pan-x"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {workoutList.map((group, index) => {
+                const isSelected = selectedSetIndex === index;
+                const setExercises = group.exercises;
+                const allSetCompleted =
+                  setExercises.length > 0 &&
+                  setExercises.every((ex) => completedExerciseIds.has(ex.id));
+                const displayName = group.name?.trim() || `Set ${index + 1}`;
+
+                return (
+                  <button
+                    key={group.id}
+                    data-set-index={index}
+                    type="button"
+                    onClick={() => setSelectedSetIndex(index)}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      isSelected
+                        ? "bg-slate-100 text-slate-950 border-white shadow-md shadow-slate-100/10 scale-105"
+                        : allSetCompleted
+                        ? "bg-emerald-950/40 text-emerald-400 border-emerald-500/30"
+                        : "bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800"
+                    }`}
+                  >
+                    <span>{displayName}</span>
+                    {allSetCompleted && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+                );
+              })}
+
+              {/* Add New Set Button at the end of tabs */}
+              <button
+                type="button"
+                onClick={handleOpenCreateModal}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-all active:scale-95 shadow-sm"
+                title="Create a new set"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Set</span>
+              </button>
+            </div>
+
+            {/* Scroll Right Button */}
+            {canScrollRight && (
+              <button
+                type="button"
+                onClick={() => scrollTabs("right")}
+                className="absolute right-0 z-10 p-1.5 rounded-xl bg-slate-900/95 border border-slate-700 text-slate-200 hover:text-white shadow-xl backdrop-blur-md -mr-2 active:scale-90 transition-all hover:bg-slate-800"
+                title="Scroll sets right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </section>
 
         {/* === 3. ACTIVE SET CARD & CLICKABLE EXERCISES === */}
